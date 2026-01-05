@@ -48,6 +48,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  const refreshToken = async () => {
+    try {
+      const refresh = localStorage.getItem("refresh_token");
+      if (!refresh) throw new Error("No refresh token");
+      
+      const response = await fetch(`${API_URL}/api/users/token/refresh/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+      
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access);
+      return data.access;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      logout(); // Force logout
+      throw error;
+    }
+  };
   const login = async (email: string, password: string) => {
     try {
       const response = await fetch(`${API_URL}/api/users/login/`, {

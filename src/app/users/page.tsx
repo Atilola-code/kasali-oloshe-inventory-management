@@ -66,16 +66,55 @@ export default function UserManagementPage() {
     fetchUsers();
   }, []);
 
+  async function validateToken(): Promise<boolean> {
+  const token = localStorage.getItem("access_token");
+  if (!token) return false;
+  
+  try {
+    const res = await fetch(`${API_URL}/api/users/`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+    });
+    
+    // If we get anything other than 401, token is valid
+    return res.status !== 401;
+  } catch {
+    return false;
+  }
+}
+
   async function fetchUsers() {
     setLoading(true);
     try {
       const token = localStorage.getItem("access_token");
+      console.log("Token:", token ? "Exists" : "Missing");
+
+      if (!token) {
+        showError("You need to log in first");
+        // Redirect to login or show login modal
+        return;
+      }
+
+      console.log("Testing token...");
+
       const res = await fetch(`${API_URL}/api/users/`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
       });
+
+      console.log("Response status:", res.status);
+
+      if (res.status === 401) {
+        // Token expired or invalid
+        showError("Your session has expired. Please log in again.");
+        localStorage.clear();
+        window.location.href = "/login";
+        return;
+      }
 
       if (res.ok) {
         const data: User[] = await res.json();
