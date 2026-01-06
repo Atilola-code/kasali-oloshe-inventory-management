@@ -4,8 +4,8 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { X, Trash2, Package, Search, Check, ChevronDown } from "lucide-react";
 import { showSuccess, showError } from "@/app/utils/toast";
 import { Product } from "@/app/types";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 interface CreatePOModalProps {
   open: boolean;
@@ -213,13 +213,8 @@ export default function CreatePOModal({ open, onClose, products, onPOCreated }: 
         }))
       };
 
-      const response = await fetch(`${API_URL}/api/purchase-orders/`, {
+      const response = await apiFetch('/api/purchase-orders/', {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
         body: JSON.stringify(payload)
       });
 

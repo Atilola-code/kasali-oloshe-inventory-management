@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { X, DollarSign, User, CreditCard, MessageSquare, Banknote } from "lucide-react";
 import { showSuccess, showError } from "@/app/utils/toast";
 import { Credit } from "@/app/types";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 interface ClearCreditModalProps {
   open: boolean;
@@ -99,13 +99,8 @@ export default function ClearCreditModal({ open, onClose, credit, onCreditCleare
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/sales/credits/${credit.id}/clear/`, {
+      const response = await apiFetch(`/api/sales/credits/${credit.id}/clear/`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
         body: JSON.stringify({
           amount_paid: amount,
           customer_name: formData.customer_name,

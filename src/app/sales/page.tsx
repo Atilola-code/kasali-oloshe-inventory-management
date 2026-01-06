@@ -27,8 +27,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showInfo, showError } from "@/app/utils/toast";
 import ToggleStatsCard from "../components/shared/ToggleStatsCard";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 
 interface DailyReport {
   date: string;
@@ -87,17 +88,11 @@ export default function SalesPage() {
   // Fetch stop sale status
   async function fetchStopSaleStatus() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/stop-sale/status/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+    
+      const response = await apiFetch('/api/sales/stop-sale/status/');
 
-      if (res.ok) {
-        const data = await res.json();
+      if (response.ok) {
+        const data = await response.json();
         setIsSaleStopped(data.is_sale_stopped);
       }
     } catch (error) {
@@ -108,14 +103,7 @@ export default function SalesPage() {
   // Check if user can create sale
   async function checkCanCreateSale() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/stop-sale/can-create/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch('/api/sales/stop-sale/can-create/');
 
       if (res.ok) {
         const data = await res.json();
@@ -193,14 +181,7 @@ export default function SalesPage() {
   async function fetchSales() {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch('/api/sales/')
 
       if (res.ok) {
         const data = await res.json();
@@ -215,14 +196,8 @@ export default function SalesPage() {
 
   async function fetchDeposits() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/deposits/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      
+      const res = await apiFetch('/api/sales/deposits/')
 
       if (res.ok) {
         const data = await res.json();
@@ -235,15 +210,7 @@ export default function SalesPage() {
 
   async function fetchProducts() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/inventory/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
-
+      const res = await apiFetch('/api/inventory/')
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
@@ -262,13 +229,7 @@ export default function SalesPage() {
     try {
       const token = localStorage.getItem("access_token");
       const today = getTodayDate();
-      const res = await fetch(`${API_URL}/api/sales/daily-report/?start_date=${today}&end_date=${today}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch(`/api/sales/daily-report/?start_date=${today}&end_date=${today}`);
 
       if (res.ok) {
         const data: DailyReport[] = await res.json();

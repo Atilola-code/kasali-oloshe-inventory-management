@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '@/contexts/AuthContext';
 import { showError } from '@/app/utils/toast';
-
+import { Eye, EyeOff } from 'lucide-react';
 
 type Props = {
   open: boolean;
@@ -26,6 +26,8 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
   const { register: registerUser } = useAuth();
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, watch } = useForm<RegisterFormData>();
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const onSubmit = async (data: RegisterFormData) => {
     setError('');
@@ -43,7 +45,7 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Register New User</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -63,7 +65,7 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
               <label className="block text-sm font-medium mb-1">First Name *</label>
               <input
                 {...register('first_name', { required: 'First name is required' })}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {errors.first_name && <p className="text-red-500 text-xs mt-1">{errors.first_name.message}</p>}
             </div>
@@ -71,7 +73,7 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
               <label className="block text-sm font-medium mb-1">Last Name *</label>
               <input
                 {...register('last_name', { required: 'Last name is required' })}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {errors.last_name && <p className="text-red-500 text-xs mt-1">{errors.last_name.message}</p>}
             </div>
@@ -82,27 +84,52 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
             <input
               type="email"
               {...register('email', { required: 'Email is required' })}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">Password *</label>
-            <input
-              type="password"
-              {...register('password', { required: 'Password is required', minLength: { value: 6, message: 'Minimum 6 characters' } })}
-              className="w-full px-3 py-2 border rounded"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                {...register('password', { 
+                  required: 'Password is required', 
+                  minLength: { value: 6, message: 'Minimum 6 characters' } 
+                })}
+                className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
           </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">Confirm Password *</label>
-            <input
-              type="password"
-              {...register('confirm_password', { required: 'Confirm password is required', validate: (value) => value === watch('password') || 'Passwords do not match' })}
-              className="w-full px-3 py-2 border rounded"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                {...register('confirm_password', { 
+                  required: 'Confirm password is required', 
+                  validate: (value) => value === watch('password') || 'Passwords do not match' 
+                })}
+                className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
             {errors.confirm_password && <p className="text-red-500 text-xs mt-1">{errors.confirm_password.message}</p>}
           </div>
 
@@ -110,7 +137,7 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
             <label className="block text-sm font-medium mb-1">Role *</label>
             <select
               {...register('role', { required: 'Role is required' })}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Select Role</option>
               <option value="CASHIER">Cashier</option>
@@ -124,7 +151,8 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
             <label className="block text-sm font-medium mb-1">Phone</label>
             <input
               {...register('phone')}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Optional"
             />
           </div>
 
@@ -132,14 +160,15 @@ export default function RegisterModal({ open, onClose, onSuccess }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
+              className="px-4 py-2 border rounded hover:bg-gray-50 transition"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition"
             >
               {isSubmitting ? 'Registering...' : 'Register User'}
             </button>

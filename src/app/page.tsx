@@ -17,8 +17,8 @@ import {
   Building,
   FileText
 } from "lucide-react";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 interface DashboardStats {
   totalSales: number;
@@ -95,27 +95,9 @@ export default function DashboardPage() {
 
       // Fetch all data in parallel
       const [salesRes, inventoryRes, depositsRes] = await Promise.all([
-        fetch(`${API_URL}/api/sales/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        }),
-        fetch(`${API_URL}/api/inventory/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        }),
-        fetch(`${API_URL}/api/sales/deposits/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        })
+        apiFetch('/api/sales/'),
+        apiFetch('/api/inventory/'),
+        apiFetch('/api/sales/deposits/')
       ]);
 
       let salesData: any[] = [];
@@ -183,13 +165,7 @@ export default function DashboardPage() {
       // Calculate total number of products
       const totalProducts = inventoryData.length;
 
-      const creditsRes = await fetch(`${API_URL}/api/sales/credits/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const creditsRes = await apiFetch('/api/sales/credits/');
 
       let outstandingPayments = 0;
       if (creditsRes.ok) {

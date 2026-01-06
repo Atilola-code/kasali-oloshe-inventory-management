@@ -9,8 +9,8 @@ import ReceiptView from "../components/salesComponent/ReceiptView";
 import EditSaleModal from "../components/salesComponent/EditSaleModal";
 import { Sale, Product, UserRole, Deposit } from "../types";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 type DailySales = {
   date: string;
@@ -61,13 +61,7 @@ export default function InvoicesPage() {
   async function fetchSales() {
     try {
       const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch('/api/sales/');
 
       if (res.ok) {
         const data: Sale[] = await res.json();
@@ -83,14 +77,7 @@ export default function InvoicesPage() {
   // Add fetchDeposits function
   async function fetchDeposits() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/deposits/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await fetch('/api/sales/deposits/');
 
       if (res.ok) {
         const data = await res.json();
@@ -105,13 +92,7 @@ export default function InvoicesPage() {
   async function fetchProducts() {
     try {
       const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/inventory/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await fetch('/api/inventory/');
 
       if (res.ok) {
         const data = await res.json();

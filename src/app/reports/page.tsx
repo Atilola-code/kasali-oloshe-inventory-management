@@ -29,8 +29,8 @@ import {
   AreaChart, Area
 } from "recharts";
 import { showSuccess, showError } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 interface ReportStats {
   totalSales: number;
@@ -108,27 +108,9 @@ export default function ReportsPage() {
       
       // Fetch all data in parallel
       const [salesRes, purchasesRes, inventoryRes] = await Promise.all([
-        fetch(`${API_URL}/api/sales/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        }),
-        fetch(`${API_URL}/api/purchase-orders/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        }),
-        fetch(`${API_URL}/api/inventory/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        })
+        apiFetch('/api/sales/'),
+        apiFetch('/api/purchase-orders/'),
+        apiFetch('/api/inventory/')
       ]);
 
       let salesData: any[] = [];

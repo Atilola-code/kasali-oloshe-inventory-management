@@ -27,8 +27,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showError } from "@/app/utils/toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 type DailyCredits = {
   date: string;
@@ -85,8 +85,7 @@ export default function OutstandingPage() {
   async function fetchCredits() {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      let url = `${API_URL}/api/sales/credits/`;
+      let url = '/api/sales/credits/';
 
       if (filterStatus !== 'all') {
         url += `?status=${filterStatus}`;
@@ -94,26 +93,13 @@ export default function OutstandingPage() {
 
       console.log('Fetching credits from:', url);
 
-      const res = await fetch(url, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
-
+      const res = await apiFetch(url)
       if (res.ok) {
         const data: Credit[] = await res.json();
         console.log('Credits data received:', data);
         
         // Calculate totals from ALL credits (not filtered by status)
-        const allCreditsRes = await fetch(`${API_URL}/api/sales/credits/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          credentials: "include"
-        });
+        const allCreditsRes = await apiFetch('/api/sales/credits/')
 
         if (allCreditsRes.ok) {
           const allCredits: Credit[] = await allCreditsRes.json();
@@ -219,13 +205,8 @@ export default function OutstandingPage() {
   async function handleMarkAsCleared(credit: Credit) {
     try {
       const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/sales/credits/${credit.id}/clear/`, {
+      const response = await apiFetch(`/api/sales/credits/${credit.id}/clear/`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
         body: JSON.stringify({
           amount_paid: credit.outstanding_amount,
           customer_name: credit.customer_name,
@@ -250,14 +231,9 @@ export default function OutstandingPage() {
 
   async function handleMarkAsPartiallyPaid(credit: Credit) {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/sales/credits/${credit.id}/mark-partial/`, {
+      const response = await apiFetch(`/api/sales/credits/${credit.id}/mark-partial/`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
+        
       });
 
       if (response.ok) {

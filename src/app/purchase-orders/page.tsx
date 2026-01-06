@@ -8,8 +8,7 @@ import CreatePOModal from "../components/purchaseOrders/CreatePOModal";
 import ViewPOModal from "../components/purchaseOrders/ViewPOModal";
 import { PurchaseOrder, Product, POStatistics } from "../types";
 import { showSuccess, showError } from "@/app/utils/toast";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+import { apiFetch } from "@/services/api";
 
 export default function PurchaseOrdersPage() {
   const [query, setQuery] = useState("");
@@ -34,20 +33,13 @@ export default function PurchaseOrdersPage() {
   async function fetchPurchaseOrders() {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      let url = `${API_URL}/api/purchase-orders/`;
+      let url = '/api/purchase-orders/'
       
       if (filterStatus !== 'all') {
         url += `?status=${filterStatus}`;
       }
 
-      const res = await fetch(url, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch(url);
 
       if (res.ok) {
         const data = await res.json();
@@ -63,14 +55,7 @@ export default function PurchaseOrdersPage() {
   async function fetchProducts() {
     setProductsLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/inventory/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch('/api/inventory/');
 
       if (res.ok) {
         const data = await res.json();
@@ -86,13 +71,7 @@ export default function PurchaseOrdersPage() {
   async function fetchStatistics() {
     try {
       const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/purchase-orders/statistics/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch('/api/purchase-orders/statistics/');
 
       if (res.ok) {
         const data = await res.json();
@@ -105,14 +84,8 @@ export default function PurchaseOrdersPage() {
 
   async function handleChangeStatus(po: PurchaseOrder, newStatus: string) {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/purchase-orders/${po.id}/change_status/`, {
+      const response = await apiFetch(`/api/purchase-orders/${po.id}/change_status/`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
         body: JSON.stringify({ status: newStatus })
       });
 
