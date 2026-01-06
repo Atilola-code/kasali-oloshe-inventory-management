@@ -2,13 +2,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Printer, X } from "lucide-react";
 import { showSuccess } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api";
 
 type Props = {
   saleId: string | null;
   onDone: () => void;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 
 export default function ReceiptView({ saleId, onDone }: Props) {
   const [saleData, setSaleData] = useState<any>(null);
@@ -25,14 +26,7 @@ export default function ReceiptView({ saleId, onDone }: Props) {
         setLoading(true);
         const token = localStorage.getItem("access_token");
         
-        const res = await fetch(`${API_URL}/api/sales/`, { 
-          method: "GET",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          credentials: "include",
-        });
+        const res = await apiFetch('/api/sales/')
 
         if (!res.ok) {
           throw new Error("Failed to fetch sale");
@@ -66,13 +60,8 @@ export default function ReceiptView({ saleId, onDone }: Props) {
         const token = localStorage.getItem("access_token");
         
         // Increment receipt print count
-        const res = await fetch(`${API_URL}/api/sales/${saleData.id}/increment-print-count/`, {
+        const res = await apiFetch(`/api/sales/${saleData.id}/increment-print-count/`, {
           method: "PATCH",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          credentials: "include",
         });
 
         if (res.ok) {

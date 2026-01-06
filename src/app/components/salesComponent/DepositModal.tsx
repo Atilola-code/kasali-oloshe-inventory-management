@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { X, Building, User, Banknote } from "lucide-react";
 import { showSuccess, showError } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 interface DepositModalProps {
   open: boolean;
@@ -55,20 +55,15 @@ export default function DepositModal({ open, onClose, onDepositCompleted }: Depo
         return;
       }
 
-      console.log("Sending deposit request to:", `${API_URL}/api/sales/deposits/`);
+      console.log("Sending deposit request to:", '/api/sales/deposits/');
       console.log("With data:", {
         amount: parseFloat(formData.amount),
         depositor_name: formData.depositor_name,
         bank_name: formData.bank_name
       });
 
-      const response = await fetch(`${API_URL}/api/sales/deposits/`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
+      const response = await apiFetch('api/sales/deposits/', {
+        method: "POST",  
         body: JSON.stringify({
           amount: parseFloat(formData.amount),
           depositor_name: formData.depositor_name,

@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { Power, PowerOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showError } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 
 interface StopSaleButtonProps {
   onStatusChange?: () => void;
@@ -22,14 +23,7 @@ export default function StopSaleButton({ onStatusChange }: StopSaleButtonProps) 
 
   async function fetchStopSaleStatus() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/stop-sale/status/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
-      });
+      const res = await apiFetch('/api/sales/stop-sale/status/');
 
       if (res.ok) {
         const data = await res.json();
@@ -51,13 +45,8 @@ export default function StopSaleButton({ onStatusChange }: StopSaleButtonProps) 
       const token = localStorage.getItem("access_token");
       const action = isSaleStopped ? "resume" : "stop";
       
-      const res = await fetch(`${API_URL}/api/sales/stop-sale/toggle/`, {
+      const res = await apiFetch('/api/sales/stop-sale/toggle/', {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
         body: JSON.stringify({
           action: action,
           reason: action === "stop" ? "Manual stop by user" : ""
