@@ -4,6 +4,7 @@ import { Product, User, UserRole } from "@/app/types";
 import { showError, showSuccess } from "@/app/utils/toast";
 import { Search, ChevronDown, Check, X } from "lucide-react"; // Added icons
 import { useState, useEffect, useRef, useCallback } from "react"; // Added hooks
+import { apiFetch } from "@/services/api";
 
 type Props = {
   open: boolean;
@@ -14,7 +15,6 @@ type Props = {
   userRole: UserRole | null;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function SalesModal({ open, onClose, products, onSaleCompleted, isSaleStopped = false, userRole = null }: Props) {
   const { register, handleSubmit, watch, reset, setValue } = useForm<any>({
@@ -190,14 +190,10 @@ export default function SalesModal({ open, onClose, products, onSaleCompleted, i
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/sales/`, {
+      const res = await apiFetch('/api/sales/', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
         body: JSON.stringify(payload),
-        credentials: "include",
+
       });
 
       if (!res.ok) {

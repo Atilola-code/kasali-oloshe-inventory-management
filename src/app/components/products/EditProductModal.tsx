@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { Product } from "@/app/types";
 import { showSuccess, showError } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api"; 
 
 type Props = {
   open: boolean;
@@ -11,7 +12,6 @@ type Props = {
   onProductUpdated: () => void;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Define category options (same as AddProductModal)
 const CATEGORY_OPTIONS = [
@@ -44,14 +44,10 @@ export default function EditProductModal({ open, onClose, product, onProductUpda
 
     try {
       const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/inventory/${product.id}/`, {
+      const res = await apiFetch(`/api/inventory/${product.id}/`, {
         method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${token}`
-        },
+        
         body: JSON.stringify(data),
-        credentials: "include",
       });
 
       if (!res.ok) {

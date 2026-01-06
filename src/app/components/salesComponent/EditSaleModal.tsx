@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { Product } from "@/app/types";
 import { showError, showSuccess } from "@/app/utils/toast";
 import { Search, ChevronDown, Check, X } from "lucide-react";
+import { apiFetch } from "@/services/api";
 
 type Props = {
   open: boolean;
@@ -13,7 +14,7 @@ type Props = {
   onSaleUpdated: () => void;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 
 export default function EditSaleModal({ open, onClose, products, saleId, onSaleUpdated }: Props) {
   const [selectedProductIds, setSelectedProductIds] = useState<Record<number, string>>({});
@@ -55,13 +56,7 @@ export default function EditSaleModal({ open, onClose, products, saleId, onSaleU
 
   async function fetchSaleData() {
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/sales/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        credentials: "include"
+      const res = await apiFetch('/api/sales/', {
       });
 
       if (res.ok) {
@@ -206,14 +201,10 @@ export default function EditSaleModal({ open, onClose, products, saleId, onSaleU
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/sales/${saleId}/`, {
+      const res = await apiFetch(`/api/sales/${saleId}/`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
         body: JSON.stringify(payload),
-        credentials: "include",
+       
       });
 
       if (!res.ok) {

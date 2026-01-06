@@ -11,6 +11,7 @@ import RegisterModal from "./auth/RegisterModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { Product, DashboardView } from "@/app/types";
 import { showSuccess, showError } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -57,15 +58,7 @@ export default function InventoryDashboardPage() {
   async function fetchProducts() {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-
-      const res = await fetch(`${API_URL}/api/inventory/`, { 
-        headers: {
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: "include",
-      });
+      const res = await apiFetch('/api/inventory/');  // ← Use apiFetch
 
       if (!res.ok) {
         const errorText = await res.text();
@@ -119,12 +112,9 @@ export default function InventoryDashboardPage() {
 
     try {
       const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/inventory/${productId}/`, {
+      const res = await apiFetch(`/api/inventory/${productId}/`, {
         method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: "include",
+      
       });
 
       if (!res.ok) {

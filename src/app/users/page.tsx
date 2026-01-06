@@ -7,6 +7,8 @@ import Topbar from "../components/layout/Topbar";
 import RegisterModal from "../components/auth/RegisterModal";
 import RoleProtectedRoute from "../components/auth/RoleProtectedRoute";
 import { showError, showSuccess } from "../utils/toast";
+import { apiFetch } from "@/services/api";
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
@@ -99,11 +101,8 @@ export default function UserManagementPage() {
 
       console.log("Testing token...");
 
-      const res = await fetch(`${API_URL}/api/users/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
+      const res = await apiFetch('/api/users/', {
+        
       });
 
       console.log("Response status:", res.status);
@@ -149,12 +148,9 @@ export default function UserManagementPage() {
     
     try {
       const token = localStorage.getItem("access_token");
-      const res = await fetch(`${API_URL}/api/users/${userId}/`, {
+      const res = await apiFetch(`/api/users/${userId}/`, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
+       
       });
 
       if (res.ok || res.status === 204) {

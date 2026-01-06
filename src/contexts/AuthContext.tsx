@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { showSuccess, showError, showInfo } from '@/app/utils/toast';
 import { User, UserRole } from "@/app/types";
+import { apiFetch } from '@/services/api';
 
 const API_URL = 'https://kasali-oloshe.onrender.com';
 
@@ -123,12 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (userData: any) => {
     const token = localStorage.getItem('access_token');
     
-    const res = await fetch(`${API_URL}/api/users/register/`, {
+    const res = await apiFetch('/api/users/register/', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
       body: JSON.stringify(userData),
     });
 
@@ -145,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await res.json();
     showSuccess(`User ${result.first_name} ${result.last_name} registered successfully!`);
     return result;
-  };
+  }
 
   return (
     <AuthContext.Provider value={{ user, login, logout, register, loading }}>

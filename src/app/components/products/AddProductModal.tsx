@@ -3,6 +3,7 @@
 import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { showSuccess, showError } from "@/app/utils/toast";
+import { apiFetch } from "@/services/api";
 
 type Props = {
   open: boolean;
@@ -11,7 +12,6 @@ type Props = {
   lastProductSku?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const CATEGORY_OPTIONS = [
   { value: 'bath soap', label: 'Bath Soap' },
@@ -57,26 +57,20 @@ export default function AddProductModal({ open, onClose, onProductAdded, lastPro
   }, [open, lastProductSku, setValue]);
 
   async function onSubmit(data: any) {
-    try {
-     console.log("Submitting product:", data)
-     const token = localStorage.getItem("access_token");
-     const res = await fetch(`${API_URL}/api/inventory/`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
+  try {
+    console.log("Submitting product:", data);
+    
+    const res = await apiFetch('/api/inventory/', {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Error response:", errorText);
-        showError(`Failed to create product: ${res.status}`);
-        return;
-      }
-
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Error response:", errorText);
+      showError(`Failed to create product: ${res.status}`);
+      return;
+    }
       const responseData = await res.json();
       console.log("Response:", responseData);
       
