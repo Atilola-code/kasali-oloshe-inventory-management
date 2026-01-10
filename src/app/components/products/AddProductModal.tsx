@@ -77,7 +77,6 @@ export default function AddProductModal({ open, onClose, onProductAdded, lastPro
       await onProductAdded();
       reset();
       onClose();
-      showSuccess("Product added successfully!");
     } catch (err) {
       console.error("Error adding product:", err);
       showError("Failed to add product");

@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showInfo, showError } from "@/app/utils/toast";
 import ToggleStatsCard from "../components/shared/ToggleStatsCard";
 import { apiFetch } from "@/services/api";
+import { useForceRefresh } from "../hooks/useForceRefresh";
 
 
 
@@ -62,31 +63,55 @@ export default function SalesPage() {
 
   const userRole = user?.role as UserRole | null;
 
-  
-  useEffect(() => {
-    fetchSales();
-    fetchDeposits();
-    fetchProducts();
-    checkMidnightReset();
-    fetchStopSaleStatus();
-    checkCanCreateSale();
-    
+  const forceRefresh = useForceRefresh();
 
-    const handleNewDay = () => {
-      fetchSales();
-      fetchDeposits();
-      showInfo("New day started! Today's sales are now being recorded.");
-    };
-    
-    window.addEventListener('newDayStarted', handleNewDay);
-    
-    return () => {
-      window.removeEventListener('newDayStarted', handleNewDay);
-    };
-  }, []);
+  async function fetchSales() {
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/sales/')
 
-  // Fetch stop sale status
-  async function fetchStopSaleStatus() {
+      if (res.ok) {
+        const data = await res.json();
+        setSales(data);
+      }
+    } catch (error) {
+      console.error("Error fetching sales:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchDeposits() {
+    try {
+      
+      const res = await apiFetch('/api/sales/deposits/')
+
+      if (res.ok) {
+        const data = await res.json();
+        setDeposits(data);
+      }
+    } catch (error) {
+      console.error("Error fetching deposits:", error);
+    }
+  }
+
+  async function fetchProducts() {
+    try {
+      const res = await apiFetch('/api/inventory/')
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+      } else {
+      console.error("Error fetching products:", res.status);
+      showError("Failed to load products for sales");
+    }
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    showError("Error loading products");
+  }
+}
+
+async function fetchStopSaleStatus() {
     try {
     
       const response = await apiFetch('/api/sales/stop-sale/status/');
@@ -114,6 +139,75 @@ export default function SalesPage() {
     }
   }
 
+  async function handleSaleCompleted(sale: any) {
+    setSelectedSaleId(sale.invoice_id || sale.id);
+    setView("receipt");
+    
+    // Force immediate refresh of sales and products
+    await forceRefresh(
+      ['/api/sales/', '/api/inventory/'],
+      [fetchSales, fetchProducts]
+    );
+    
+    await checkCanCreateSale();
+    showSuccess("Sale created successfully!");
+  }
+
+  // ✅ UPDATED: Deposit completed with force refresh
+  async function handleDepositCompleted() {
+    await forceRefresh(
+      ['/api/sales/deposits/'],
+      [fetchDeposits]
+    );
+    showSuccess("Cash deposit recorded successfully!");
+  }
+
+  // ✅ UPDATED: Sale updated with force refresh
+  async function handleSaleUpdated() {
+    await forceRefresh(
+      ['/api/sales/', '/api/inventory/'],
+      [fetchSales, fetchProducts]
+    );
+    
+    if (selectedSaleId) {
+      setView("receipt");
+    }
+    showSuccess("Sale updated successfully!");
+  }
+
+  // Handle refresh - fetch all data
+  const handleRefresh = async () => {
+    await forceRefresh(
+      ['/api/sales/', '/api/sales/deposits/', '/api/inventory/'],
+      [fetchSales, fetchDeposits, fetchProducts, fetchStopSaleStatus, checkCanCreateSale]
+    );
+    showInfo("Data refreshed successfully!");
+  };
+  
+  useEffect(() => {
+    fetchSales();
+    fetchDeposits();
+    fetchProducts();
+    checkMidnightReset();
+    fetchStopSaleStatus();
+    checkCanCreateSale();
+    
+
+    const handleNewDay = () => {
+      fetchSales();
+      fetchDeposits();
+      showInfo("New day started! Today's sales are now being recorded.");
+    };
+    
+    window.addEventListener('newDayStarted', handleNewDay);
+    
+    return () => {
+      window.removeEventListener('newDayStarted', handleNewDay);
+    };
+  }, []);
+
+  // Fetch stop sale status
+  
   function checkMidnightReset() {
     const lastReset = localStorage.getItem('last_sales_reset');
     const now = new Date();
@@ -178,51 +272,7 @@ export default function SalesPage() {
     }).format(numAmount);
   };
 
-  async function fetchSales() {
-    setLoading(true);
-    try {
-      const res = await apiFetch('/api/sales/')
-
-      if (res.ok) {
-        const data = await res.json();
-        setSales(data);
-      }
-    } catch (error) {
-      console.error("Error fetching sales:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchDeposits() {
-    try {
-      
-      const res = await apiFetch('/api/sales/deposits/')
-
-      if (res.ok) {
-        const data = await res.json();
-        setDeposits(data);
-      }
-    } catch (error) {
-      console.error("Error fetching deposits:", error);
-    }
-  }
-
-  async function fetchProducts() {
-    try {
-      const res = await apiFetch('/api/inventory/')
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-      } else {
-      console.error("Error fetching products:", res.status);
-      showError("Failed to load products for sales");
-    }
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    showError("Error loading products");
-  }
-}
+  
 
   // Fetch daily report (sales + deposits combined)
   async function fetchDailyReport() {
@@ -243,26 +293,7 @@ export default function SalesPage() {
     }
   }
 
-  function handleSaleCompleted(sale: any) {
-    setSelectedSaleId(sale.invoice_id || sale.id);
-    setView("receipt");
-    fetchSales();
-    fetchProducts();
-    checkCanCreateSale(); // Refresh permission check
-  }
-
-  function handleDepositCompleted() {
-    fetchDeposits();
-    showSuccess("Cash deposit recorded successfully!");
-  }
-
-  function handleSaleUpdated() {
-    fetchSales();
-    fetchProducts();
-    if (selectedSaleId) {
-      setView("receipt");
-    }
-  }
+  
 
   function canEditSale(sale: Sale): boolean {
     if (!userRole) return false;
@@ -392,14 +423,7 @@ export default function SalesPage() {
     setSaleOpen(true);
   };
 
-  // Handle refresh - fetch all data
-  const handleRefresh = () => {
-    fetchSales();
-    fetchDeposits();
-    fetchStopSaleStatus();
-    checkCanCreateSale();
-    showInfo("Data refreshed successfully!");
-  };
+  
   
   return (
     <ProtectedRoute>

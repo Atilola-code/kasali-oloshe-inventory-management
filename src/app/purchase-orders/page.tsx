@@ -195,6 +195,38 @@ export default function PurchaseOrdersPage() {
     fetchInitialData();
   }, [fetchFilteredPurchaseOrders, fetchStats]);
 
+  const handlePOCreated = async () => {
+  try {
+    // 1. Clear ALL related caches immediately
+    clearCacheByEndpoint('/api/purchase-orders');
+    clearCacheByEndpoint('/api/inventory');
+    
+    // 2. Force immediate re-fetch (don't rely on cache)
+    const timestamp = Date.now(); // Cache buster
+    
+    await Promise.all([
+      fetchPurchaseOrders({ 
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' }
+      }),
+      fetchStatistics({
+        method: 'GET', 
+        headers: { 'Cache-Control': 'no-cache' }
+      })
+    ]);
+    
+    // 3. Show success message
+    showSuccess("Purchase order created successfully!");
+    
+    // 4. Close modal
+    setCreateModalOpen(false);
+    
+  } catch (error) {
+    console.error("Error refreshing after PO creation:", error);
+    showError("PO created but failed to refresh list");
+  }
+};
+
   // Handle status change with optimistic updates
   const handleChangeStatus = async (po: PurchaseOrder, newStatus: string) => {
     if (!purchaseOrdersData?.result) return;
@@ -337,17 +369,7 @@ export default function PurchaseOrdersPage() {
             open={createModalOpen}
             onClose={() => setCreateModalOpen(false)}
             products={products}
-            onPOCreated={async () => {
-              // Clear caches
-              clearCacheByEndpoint('/api/purchase-orders');
-              clearCacheByEndpoint('/api/purchase-orders/statistics');
-              
-              // Refresh data
-              await Promise.all([
-                fetchFilteredPurchaseOrders(),
-                fetchStats()
-              ]);
-            }}
+            onPOCreated={handlePOCreated}
           />
         )}
 
