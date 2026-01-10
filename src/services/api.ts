@@ -32,43 +32,123 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+const trackCacheHit = (endpoint: string, hit: boolean) => {
+  const key = `cache_stats_${endpoint}`;
+  const stats = JSON.parse(localStorage.getItem(key) || '{"hits":0,"misses":0}');
+  
+  if (hit) stats.hits++;
+  else stats.misses++;
+  
+  localStorage.setItem(key, JSON.stringify(stats));
+  
+  const hitRate = stats.hits / (stats.hits + stats.misses);
+  if (hitRate < 0.3) {
+    console.warn(`Low cache hit rate for ${endpoint}: ${(hitRate * 100).toFixed(1)}%`);
+  }
+};
+
+
+const cache = new Map<string, { data: any; timestamp: number; etag?: string }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_VERSION = 'v1'; // Change this when API structure changes
+
+
 // Main API fetch function with auto token refresh
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+  const method = options.method || 'GET';
+  const isCacheable = ['GET', 'HEAD'].includes(method.toUpperCase());
+  
+  // Create a unique cache key with versioning
+  const cacheKey = `${CACHE_VERSION}:${endpoint}:${JSON.stringify(options)}`;
+  
+  // Check cache for GET requests
+  if (isCacheable) {
+    const cached = cache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log('Cache hit:', endpoint);
+      trackCacheHit(endpoint, true);
+
+      // Return a new response object to avoid mutation issues
+      return new Response(JSON.stringify(cached.data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    trackCacheHit(endpoint, false);
+  }
+
   let token = localStorage.getItem('access_token');
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+
+  if (options.headers) {
+    Object.assign(headers, options.headers);
+  }
   
   // First attempt
   let response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
-    },
+    headers,
   });
-  
-  // If token expired (401), try to refresh it
+
+  // Cache the response
   if (response.status === 401) {
     const newToken = await refreshAccessToken();
     
     if (newToken) {
-      // Retry with new token
+      headers['Authorization'] = `Bearer ${newToken}`;
       response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${newToken}`,
-          ...options.headers,
-        },
+        headers,
       });
     } else {
-      // Refresh failed, clear storage and redirect to login
       localStorage.clear();
       window.location.href = '/login';
-      throw new Error('Session expired. Please login again.');
+      throw new Error('Session expired');
+    }
+  }
+  
+  // Cache successful GET responses
+  if (isCacheable && response.ok) {
+    try {
+      const data = await response.clone().json();
+      const etag = response.headers.get('etag');
+      cache.set(cacheKey, {
+        data,
+        timestamp: Date.now(),
+        etag: etag || undefined // Convert null to undefined
+      });
+      console.log('Cached response for:', endpoint);
+    } catch (error) {
+      console.error('Failed to cache response:', error);
     }
   }
   
   return response;
+}
+
+export function clearApiCache() {
+  cache.clear();
+  console.log('Cache cleared');
+}
+
+export function clearCacheByEndpoint(endpointPattern: string | RegExp) {
+  let cleared = 0;
+  for (const key of cache.keys()) {
+    const endpoint = key.split(':')[1];
+    if (typeof endpointPattern === 'string' && endpoint.includes(endpointPattern)) {
+      cache.delete(key);
+      cleared++;
+    } else if (endpointPattern instanceof RegExp && endpointPattern.test(endpoint)) {
+      cache.delete(key);
+      cleared++;
+    }
+  }
+  console.log(`Cleared ${cleared} cache entries for pattern: ${endpointPattern}`);
 }
 
 // USER MANAGEMENT

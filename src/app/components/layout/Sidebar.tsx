@@ -17,7 +17,8 @@ import {
   DollarSign, 
   BadgeDollarSign,
   X,
-  AlertCircle
+  AlertCircle,
+  MessagesSquare
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { showError } from "@/app/utils/toast";
@@ -31,7 +32,7 @@ const links = [
   { name: "Reports", href: "/reports", icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
   { name: "Purchase Orders", href: "/purchase-orders", icon: Package, roles: ['ADMIN', 'MANAGER'] },
   { name: "User Management", href: "/users", icon: Users, roles: ['ADMIN', 'MANAGER']},
-  { name: "Stock Movement", href: "/stock-movement", icon: FileText, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  { name: "Live chat", href: "/live-chat", icon: MessagesSquare, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
   { name: "Invoices", href: "/invoices", icon: Receipt, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
   { name: "Tax Computation", href: "/tax", icon: BadgeDollarSign, roles: ['ADMIN', 'MANAGER'] },
   { name: "Settings", href: "/settings", icon: Settings, roles: ['ADMIN', 'MANAGER', 'CASHIER']},
