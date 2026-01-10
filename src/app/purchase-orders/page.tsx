@@ -7,8 +7,9 @@ import CreatePOModal from "../components/purchaseOrders/CreatePOModal";
 import ViewPOModal from "../components/purchaseOrders/ViewPOModal";
 import { PurchaseOrder, Product, POStatistics } from "../types";
 import { showSuccess, showError } from "@/app/utils/toast";
-import { apiFetch, clearCacheByEndpoint } from "@/services/api";
+import { apiFetch, clearCacheByEndpoint, clearRelatedCaches } from "@/services/api";
 import { useFetchWithCache, useNetworkStatus } from "../hooks/useFetchWithCache";
+import { useForceRefresh } from "../hooks/useForceRefresh"; // ← ADD THIS
 import { ErrorBoundary } from "../components/shared/ErrorBoundary";
 import PurchaseOrdersTable from "./PurchaseOrdersTable";
 import PurchaseOrdersStats from "./PurchaseOrdersStats";
@@ -21,7 +22,7 @@ interface PurchaseOrdersResponse {
   count: number;
 }
 
-// Helper functions moved outside component
+// Helper functions
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', {
     minimumFractionDigits: 0,
@@ -80,6 +81,9 @@ export default function PurchaseOrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   
   const isOnline = useNetworkStatus();
+  
+  // ✅ ADD FORCE REFRESH HOOK
+  const forceRefresh = useForceRefresh();
 
   // Use custom hooks for data fetching
   const { 
@@ -115,38 +119,39 @@ export default function PurchaseOrdersPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch products with local cache
-  useEffect(() => {
-    const fetchProducts = async () => {
-      const cachedProducts = localStorage.getItem('cached_products');
-      const cachedTime = localStorage.getItem('cached_products_time');
-      
-      const isCacheValid = cachedTime && 
-        (Date.now() - parseInt(cachedTime)) < (30 * 60 * 1000); // 30 minutes
-      
-      if (cachedProducts && isCacheValid) {
-        setProducts(JSON.parse(cachedProducts));
-        setProductsLoading(false);
-      } else {
-        setProductsLoading(true);
-        try {
-          const res = await apiFetch('/api/inventory/');
-          if (res.ok) {
-            const data = await res.json();
-            setProducts(data);
-            localStorage.setItem('cached_products', JSON.stringify(data));
-            localStorage.setItem('cached_products_time', Date.now().toString());
-          }
-        } catch (error) {
-          console.error("Error fetching products:", error);
-        } finally {
-          setProductsLoading(false);
-        }
+  // Fetch products
+  const fetchProductsData = useCallback(async () => {
+    setProductsLoading(true);
+    try {
+      const res = await apiFetch('/api/inventory/');
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+        localStorage.setItem('cached_products', JSON.stringify(data));
+        localStorage.setItem('cached_products_time', Date.now().toString());
       }
-    };
-
-    fetchProducts();
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setProductsLoading(false);
+    }
   }, []);
+
+  // Fetch products with cache
+  useEffect(() => {
+    const cachedProducts = localStorage.getItem('cached_products');
+    const cachedTime = localStorage.getItem('cached_products_time');
+    
+    const isCacheValid = cachedTime && 
+      (Date.now() - parseInt(cachedTime)) < (30 * 60 * 1000);
+    
+    if (cachedProducts && isCacheValid) {
+      setProducts(JSON.parse(cachedProducts));
+      setProductsLoading(false);
+    } else {
+      fetchProductsData();
+    }
+  }, [fetchProductsData]);
 
   // Fetch purchase orders with pagination and filtering
   const fetchFilteredPurchaseOrders = useCallback(async () => {
@@ -195,43 +200,31 @@ export default function PurchaseOrdersPage() {
     fetchInitialData();
   }, [fetchFilteredPurchaseOrders, fetchStats]);
 
+  // ✅ FIXED: PO Created with force refresh
   const handlePOCreated = async () => {
-  try {
-    // 1. Clear ALL related caches immediately
-    clearCacheByEndpoint('/api/purchase-orders');
-    clearCacheByEndpoint('/api/inventory');
-    
-    // 2. Force immediate re-fetch (don't rely on cache)
-    const timestamp = Date.now(); // Cache buster
-    
-    await Promise.all([
-      fetchPurchaseOrders({ 
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' }
-      }),
-      fetchStatistics({
-        method: 'GET', 
-        headers: { 'Cache-Control': 'no-cache' }
-      })
-    ]);
-    
-    // 3. Show success message
-    showSuccess("Purchase order created successfully!");
-    
-    // 4. Close modal
-    setCreateModalOpen(false);
-    
-  } catch (error) {
-    console.error("Error refreshing after PO creation:", error);
-    showError("PO created but failed to refresh list");
-  }
-};
+    try {
+      console.log('🔄 PO Created - Starting force refresh...');
+      
+      // Use force refresh to clear caches and re-fetch
+      await forceRefresh(
+        ['/api/purchase-orders/', '/api/purchase-orders/statistics/', '/api/inventory/'],
+        [fetchFilteredPurchaseOrders, fetchStats, fetchProductsData]
+      );
+      
+      showSuccess("Purchase order created successfully!");
+      setCreateModalOpen(false);
+      
+      console.log('✅ Force refresh completed');
+    } catch (error) {
+      console.error("❌ Error refreshing after PO creation:", error);
+      showError("PO created but failed to refresh list");
+    }
+  };
 
   // Handle status change with optimistic updates
   const handleChangeStatus = async (po: PurchaseOrder, newStatus: string) => {
     if (!purchaseOrdersData?.result) return;
 
-    // Type assertion for status - since we're optimistic updating
     const newStatusTyped = newStatus as PurchaseOrder['status'];
     
     // Optimistic update
@@ -254,12 +247,11 @@ export default function PurchaseOrdersPage() {
       if (response.ok) {
         showSuccess(`Status changed to ${newStatus}`);
         
-        // Invalidate caches
-        invalidatePOCache();
-        invalidateStatsCache();
-        
-        // Refresh statistics
-        await fetchStats();
+        // Force refresh after status change
+        await forceRefresh(
+          ['/api/purchase-orders/', '/api/purchase-orders/statistics/'],
+          [fetchFilteredPurchaseOrders, fetchStats]
+        );
       } else {
         // Rollback on error
         setPurchaseOrdersData(previousData);
@@ -281,11 +273,12 @@ export default function PurchaseOrdersPage() {
     setDropdownOpen(null);
   };
 
+  // ✅ FIXED: Refresh with force refresh
   const handleRefresh = async () => {
-    await Promise.all([
-      fetchFilteredPurchaseOrders(),
-      fetchStats()
-    ]);
+    await forceRefresh(
+      ['/api/purchase-orders/', '/api/purchase-orders/statistics/', '/api/inventory/'],
+      [fetchFilteredPurchaseOrders, fetchStats, fetchProductsData]
+    );
     showSuccess("Data refreshed!");
   };
 
@@ -298,6 +291,16 @@ export default function PurchaseOrdersPage() {
       po.supplier_name.toLowerCase().includes(debouncedSearch.toLowerCase())
     );
   }, [purchaseOrdersData, debouncedSearch]);
+
+  // ✅ DEBUG: Log data to console
+  useEffect(() => {
+    console.log('📊 Purchase Orders Data:', {
+      loading: poLoading,
+      data: purchaseOrdersData,
+      filtered: filteredPOs,
+      statistics: statisticsData
+    });
+  }, [poLoading, purchaseOrdersData, filteredPOs, statisticsData]);
 
   return (
     <ProtectedRoute>
@@ -336,6 +339,17 @@ export default function PurchaseOrdersPage() {
                 statistics={statisticsData}
                 formatCurrency={formatCurrency}
               />
+
+              {/* ✅ DEBUG INFO - Remove after testing */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+                  <p className="font-semibold">Debug Info:</p>
+                  <p>Loading: {poLoading ? 'Yes' : 'No'}</p>
+                  <p>Total POs: {purchaseOrdersData?.result?.length || 0}</p>
+                  <p>Filtered POs: {filteredPOs.length}</p>
+                  <p>Statistics Total Value: ₦{statisticsData?.total_value || 0}</p>
+                </div>
+              )}
 
               {/* Table */}
               <PurchaseOrdersTable
