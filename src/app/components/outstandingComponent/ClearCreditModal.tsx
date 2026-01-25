@@ -67,6 +67,11 @@ export default function ClearCreditModal({ open, onClose, credit, onCreditCleare
     }));
   };
 
+  function triggerDashboardRefresh() {
+    window.dispatchEvent(new CustomEvent('dashboardRefresh', {
+      detail: { source: 'creditClear', timestamp: Date.now() }
+    }));
+  }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await submitPayment();
@@ -110,6 +115,12 @@ export default function ClearCreditModal({ open, onClose, credit, onCreditCleare
       });
 
       if (response.ok) {
+        console.log("Credit payment recorded successfully");
+        
+      
+      // Step 3: Trigger dashboard refresh to update cash-at-bank
+        triggerDashboardRefresh();
+
         showSuccess("Credit payment recorded successfully!");
         onCreditCleared();
         onClose();
@@ -272,6 +283,11 @@ export default function ClearCreditModal({ open, onClose, credit, onCreditCleare
                   </svg>
                 </div>
               </div>
+              {['transfer', 'pos', 'bank'].includes(formData.payment_method) && (
+                <p className="text-xs text-blue-500 mt-2">
+                 A bank deposit will be automatically created for this payment.
+                </p>
+              )}
             </div>
 
             <div>

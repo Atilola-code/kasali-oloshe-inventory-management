@@ -1,3 +1,4 @@
+//src/app/purchase-orders/PurchaseOrdersStats.tsx
 import { Package, FileText, CheckCircle, TrendingUp } from "lucide-react";
 import { POStatistics } from "../types";
 

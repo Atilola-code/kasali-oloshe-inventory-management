@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Shield, Users, UserPlus, Eye, Edit, Trash2, MoreVertical } from "lucide-react";
+import { Shield, Users, UserPlus, Edit, Trash2, MoreVertical, AlertTriangle } from "lucide-react";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
 import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
@@ -29,6 +29,94 @@ interface RoleStats {
   cashier: number;
 }
 
+// Confirmation Modal Component
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'danger' | 'warning' | 'info';
+}
+
+const ConfirmationModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = "Delete",
+  cancelText = "Cancel",
+  variant = "danger"
+}: ConfirmationModalProps) => {
+  if (!isOpen) return null;
+
+  const variantStyles = {
+    danger: "bg-red-600 hover:bg-red-700 focus:ring-red-500",
+    warning: "bg-orange-600 hover:bg-orange-700 focus:ring-orange-500",
+    info: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+  };
+
+  const iconColors = {
+    danger: "text-red-600",
+    warning: "text-orange-600",
+    info: "text-blue-600"
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        {/* Background overlay */}
+        <div
+          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+          onClick={onClose}
+        />
+
+        {/* Modal panel */}
+        <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="sm:flex flex-col items-center">
+              <div className={`mx-auto flex-shrink-0 mb-4 flex items-center justify-center h-12 w-12 rounded-full ${iconColors[variant]} bg-opacity-10 sm:mx-0 sm:h-10 sm:w-10`}>
+                <AlertTriangle className="h-10 w-10 " aria-hidden="true" />
+              </div>
+              <div className="mt-6 text-center sm:mt-0 sm:ml-4 sm:text-center">
+                <h3 className="text-xl leading-6 font-medium text-gray-900">
+                  {title}
+                </h3>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-500">
+                    {message}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              className={`w-full inline-flex justify-center rounded-xl border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white ${variantStyles[variant]} focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm`}
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+            >
+              {confirmText}
+            </button>
+            <button
+              type="button"
+              className="mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={onClose}
+            >
+              {cancelText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 export default function UserManagementPage() {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
@@ -41,6 +129,15 @@ export default function UserManagementPage() {
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    userId: number | null;
+    userName: string;
+  }>({
+    isOpen: false,
+    userId: null,
+    userName: "",
+  })
 
   const dropdownRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
@@ -143,28 +240,42 @@ export default function UserManagementPage() {
     fetchUsers(); // Refresh the user list
   }
 
-  async function handleDeleteUser(userId: number) {
-    if (!confirm("Are you sure you want to delete this user?")) return;
-    
+  const handleDeleteUser = async (userId: number) => {
+    // No need for confirmation here, it's handled by the modal
+  };
+
+  // New function to handle delete confirmation
+  const handleDeleteConfirmation = (userId: number, userName: string) => {
+    setConfirmationModal({
+      isOpen: true,
+      userId,
+      userName,
+    });
+    setActiveMenu(null); // Close dropdown menu
+  };
+
+  // New function to execute delete after confirmation
+  const executeDeleteUser = async () => {
+    const { userId } = confirmationModal;
+    if (!userId) return;
+
     try {
       const token = localStorage.getItem("access_token");
       const res = await apiFetch(`/api/users/${userId}/`, {
         method: "DELETE",
-       
       });
 
       if (res.ok || res.status === 204) {
-        // Show success message
         showSuccess("User deleted successfully!");
         
-        // Update local state to remove the user immediately
+        // Update local state
         setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
         
         // Update role stats
         const deletedUser = users.find(user => user.id === userId);
         if (deletedUser) {
           setRoleStats(prevStats => {
-            const newStats = {...prevStats};
+            const newStats = { ...prevStats };
             if (deletedUser.role === 'ADMIN') newStats.admin--;
             else if (deletedUser.role === 'MANAGER') newStats.manager--;
             else if (deletedUser.role === 'CASHIER') newStats.cashier--;
@@ -172,21 +283,14 @@ export default function UserManagementPage() {
           });
         }
       } else {
-        // Try to get error message from response
-        try {
-          const errorData = await res.json();
-          showError(`Failed to delete user: ${errorData.detail || errorData.message || 'Unknown error'}`);
-        } catch {
-          showError(`Failed to delete user: HTTP ${res.status}`);
-        }
+        const errorData = await res.json();
+        showError(`Failed to delete user: ${errorData.detail || errorData.message || 'Unknown error'}`);
       }
     } catch (error: any) {
       console.error("Error deleting user:", error);
       showError(`Error deleting user: ${error.message || 'Network error'}`);
-    } finally {
-      setActiveMenu(null);
     }
-  }
+  };
 
   async function handleEditUser(user: User) {
     // Implement edit functionality
@@ -409,7 +513,10 @@ export default function UserManagementPage() {
                                         Edit User
                                       </button>
                                       <button
-                                        onClick={() => handleDeleteUser(user.id)}
+                                        onClick={() => handleDeleteConfirmation(
+                                          user.id, 
+                                          `${user.first_name} ${user.last_name}`
+                                        )}
                                         className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                                       >
                                         <Trash2 size={16} className="mr-3" />
@@ -431,6 +538,21 @@ export default function UserManagementPage() {
           </div>
         </div>
         
+        {/* Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={confirmationModal.isOpen}
+          onClose={() => setConfirmationModal({
+            isOpen: false,
+            userId: null,
+            userName: ""
+          })}
+          onConfirm={executeDeleteUser}
+          title="Delete User"
+          message={`Are you sure you want to delete ${confirmationModal.userName}? This action cannot be undone.`}
+          confirmText="Delete User"
+          cancelText="Cancel"
+          variant="danger"
+        />
         <RegisterModal
           open={registerModalOpen}
           onClose={() => setRegisterModalOpen(false)}

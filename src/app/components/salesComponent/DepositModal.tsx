@@ -62,7 +62,7 @@ export default function DepositModal({ open, onClose, onDepositCompleted }: Depo
         bank_name: formData.bank_name
       });
 
-      const response = await apiFetch('api/sales/deposits/', {
+      const response = await apiFetch('/api/sales/deposits/', {
         method: "POST",  
         body: JSON.stringify({
           amount: parseFloat(formData.amount),

@@ -1,7 +1,6 @@
 // src/app/components/layout/Sidebar.tsx
 "use client";
 import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
 import { 
   LayoutDashboard, 
   Package, 
@@ -22,7 +21,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { showError } from "@/app/utils/toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiFetch } from "@/services/api";
 
 const links = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER'] },
@@ -32,7 +32,7 @@ const links = [
   { name: "Reports", href: "/reports", icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
   { name: "Purchase Orders", href: "/purchase-orders", icon: Package, roles: ['ADMIN', 'MANAGER'] },
   { name: "User Management", href: "/users", icon: Users, roles: ['ADMIN', 'MANAGER']},
-  { name: "Live chat", href: "/live-chat", icon: MessagesSquare, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  { name: "Live chat", href: "/live-chat", icon: MessagesSquare, roles: ['ADMIN', 'MANAGER', 'CASHIER'], showBadge: true },
   { name: "Invoices", href: "/invoices", icon: Receipt, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
   { name: "Tax Computation", href: "/tax", icon: BadgeDollarSign, roles: ['ADMIN', 'MANAGER'] },
   { name: "Settings", href: "/settings", icon: Settings, roles: ['ADMIN', 'MANAGER', 'CASHIER']},
@@ -116,6 +116,29 @@ export default function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (user) {
+      fetchUnreadCount();
+      // Poll every 30 seconds
+      const interval = setInterval(fetchUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const fetchUnreadCount = async () => {
+  try {
+    const response = await apiFetch('/api/chat/unread-count/');
+    if (response.ok) {
+      const data = await response.json();
+      setUnreadCount(data.count);
+    }
+  } catch (error) {
+    console.error('Failed to fetch unread count:', error);
+  }
+};
 
   const handleNavigation = (href: string, allowedRoles: string[]) => {
     if (!user) {
@@ -161,7 +184,7 @@ export default function Sidebar() {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {links.map(({ name, href, icon: Icon, roles, viewableBy }) => {
+          {links.map(({ name, href, icon: Icon, roles, viewableBy, showBadge }) => {
             const hasAccess = user && roles.includes(user.role);
             const canViewInSidebar = !viewableBy || (user && roles.includes(user.role));
             
@@ -179,7 +202,14 @@ export default function Sidebar() {
                   <Icon className={`mr-3 h-5 w-5 ${pathname === href ? 'text-blue-600' : 'text-gray-500'}`} />
                   {name}
                 </div>
-                {!canViewInSidebar && <LockIcon className="h-4 w-4 text-gray-400" />}
+                <div className="flex items-center gap-2">
+                  {showBadge && unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                  {!canViewInSidebar && <LockIcon className="h-4 w-4 text-gray-400" />}
+                </div>
               </button>
             );
           })}

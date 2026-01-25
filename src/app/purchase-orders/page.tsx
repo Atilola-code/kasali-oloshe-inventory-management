@@ -1,3 +1,4 @@
+//src/app/purchase-orders/page.tsx
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
@@ -92,14 +93,28 @@ export default function PurchaseOrdersPage() {
     fetchData: fetchPurchaseOrders,
     invalidateCache: invalidatePOCache,
     setData: setPurchaseOrdersData
-  } = useFetchWithCache<PurchaseOrdersResponse>('/api/purchase-orders');
+  } = useFetchWithCache<PurchaseOrdersResponse>('/api/purchase-orders/');
   
   const { 
     data: statisticsData, 
     fetchData: fetchStatistics,
     invalidateCache: invalidateStatsCache 
-  } = useFetchWithCache<POStatistics>('/api/purchase-orders/statistics');
+  } = useFetchWithCache<POStatistics>('/api/purchase-orders/statistics/');
 
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      console.log('🔄 Received data refresh event');
+      handleRefresh();
+    };
+    
+    window.addEventListener('dataRefresh', handleDataRefresh);
+    
+    return () => {
+      window.removeEventListener('dataRefresh', handleDataRefresh);
+    };
+  }, []);
+
+  
   // Performance monitoring
   useEffect(() => {
     const perf = measurePerformance('PurchaseOrdersPage Mount');
@@ -205,11 +220,22 @@ export default function PurchaseOrdersPage() {
     try {
       console.log('🔄 PO Created - Starting force refresh...');
       
-      // Use force refresh to clear caches and re-fetch
-      await forceRefresh(
-        ['/api/purchase-orders/', '/api/purchase-orders/statistics/', '/api/inventory/'],
-        [fetchFilteredPurchaseOrders, fetchStats, fetchProductsData]
-      );
+      // Clear specific caches
+      clearCacheByEndpoint('/api/purchase-orders/');
+      clearCacheByEndpoint('/api/inventory/');
+      clearCacheByEndpoint('/api/purchase-orders/statistics/');
+      
+      // Force re-fetch
+      await Promise.all([
+        fetchFilteredPurchaseOrders(),
+        fetchStats(),
+        fetchProductsData()
+      ]);
+      
+      // Also trigger a full page refresh after short delay
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('dataRefresh'));
+      }, 500);
       
       showSuccess("Purchase order created successfully!");
       setCreateModalOpen(false);
@@ -297,7 +323,9 @@ export default function PurchaseOrdersPage() {
     console.log('📊 Purchase Orders Data:', {
       loading: poLoading,
       data: purchaseOrdersData,
-      filtered: filteredPOs,
+      resultArray: purchaseOrdersData?.result,
+      count: purchaseOrdersData?.count,
+      filtered: filteredPOs?.length,
       statistics: statisticsData
     });
   }, [poLoading, purchaseOrdersData, filteredPOs, statisticsData]);
@@ -340,16 +368,6 @@ export default function PurchaseOrdersPage() {
                 formatCurrency={formatCurrency}
               />
 
-              {/* ✅ DEBUG INFO - Remove after testing */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
-                  <p className="font-semibold">Debug Info:</p>
-                  <p>Loading: {poLoading ? 'Yes' : 'No'}</p>
-                  <p>Total POs: {purchaseOrdersData?.result?.length || 0}</p>
-                  <p>Filtered POs: {filteredPOs.length}</p>
-                  <p>Statistics Total Value: ₦{statisticsData?.total_value || 0}</p>
-                </div>
-              )}
 
               {/* Table */}
               <PurchaseOrdersTable

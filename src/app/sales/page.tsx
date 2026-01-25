@@ -1,3 +1,4 @@
+//src/app/sales/page.tsx
 "use client";
 import { useEffect, useState } from "react";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
@@ -83,7 +84,6 @@ export default function SalesPage() {
 
   async function fetchDeposits() {
     try {
-      
       const res = await apiFetch('/api/sales/deposits/')
 
       if (res.ok) {
@@ -113,9 +113,7 @@ export default function SalesPage() {
 
 async function fetchStopSaleStatus() {
     try {
-    
       const response = await apiFetch('/api/sales/stop-sale/status/');
-
       if (response.ok) {
         const data = await response.json();
         setIsSaleStopped(data.is_sale_stopped);
@@ -174,6 +172,14 @@ async function fetchStopSaleStatus() {
     }
     showSuccess("Sale updated successfully!");
   }
+
+  const handleStopSaleStatusChange = async () => {
+    console.log("Stop sale status changed, refreshing...");
+    await Promise.all([
+      fetchStopSaleStatus(),
+      checkCanCreateSale()
+    ]);
+  };
 
   // Handle refresh - fetch all data
   const handleRefresh = async () => {
@@ -331,14 +337,14 @@ async function fetchStopSaleStatus() {
   const displaySales = showAllSales ? sales : filterTodaySales(sales);
   const displayDeposits = showAllSales ? deposits : filterTodayDeposits(deposits);
   
-  useEffect(() => {
-    if (displaySales.length > 0) {
-      console.log('DEBUG - Display Sales:', displaySales);
-      console.log('DEBUG - Cash Sales:', displaySales.filter(s => s.payment_method === 'cash'));
-      console.log('DEBUG - Digital Sales:', displaySales.filter(s => s.payment_method === 'transfer' || s.payment_method === 'pos'));
-      console.log('DEBUG - Credit Sales:', displaySales.filter(s => s.payment_method === 'credit'));
-    }
-  }, [displaySales]);
+  // useEffect(() => {
+  //   if (displaySales.length > 0) {
+  //     console.log('DEBUG - Display Sales:', displaySales);
+  //     console.log('DEBUG - Cash Sales:', displaySales.filter(s => s.payment_method === 'cash'));
+  //     console.log('DEBUG - Digital Sales:', displaySales.filter(s => s.payment_method === 'transfer' || s.payment_method === 'pos'));
+  //     console.log('DEBUG - Credit Sales:', displaySales.filter(s => s.payment_method === 'credit'));
+  //   }
+  // }, [displaySales]);
 
   const filteredSales = displaySales.filter((sale) => {
     if (!sale || !sale.invoice_id) return false;
@@ -477,15 +483,10 @@ async function fetchStopSaleStatus() {
                         </div>
                       )}
                       <div className="flex gap-2">
-                        {/* Stop Sale Button - Only for ADMIN/MANAGER */}
                         <StopSaleButton 
-                          onStatusChange={() => {
-                            fetchStopSaleStatus();
-                            checkCanCreateSale();
-                          }} 
+                          onStatusChange={handleStopSaleStatusChange}
                         />
 
-                        {/* Only ADMIN or MANAGER can see Cash Deposited button */}
                         {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
                           <button
                             onClick={() => setDepositOpen(true)}
@@ -519,12 +520,14 @@ async function fetchStopSaleStatus() {
                   {isSaleStopped && (
                     <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-2 text-sm">
                       <div className="flex items-center gap-2 text-red-800">
-                        <AlertTriangle className="w-5 h-5" />
+                        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                        <div>
                         <p className="font-medium">Sales have been stopped by management</p>
-                      </div>
                       <p className="text-sm text-red-600 mt-1">
                         Only administrators and managers can process sales at this time.
                       </p>
+                        </div>
+                      </div>
                     </div>
                   )}
 

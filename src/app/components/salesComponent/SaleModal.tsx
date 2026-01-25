@@ -2,8 +2,8 @@
 import { useForm } from "react-hook-form";
 import { Product, User, UserRole } from "@/app/types";
 import { showError, showSuccess } from "@/app/utils/toast";
-import { Search, ChevronDown, Check, X } from "lucide-react"; // Added icons
-import { useState, useEffect, useRef, useCallback } from "react"; // Added hooks
+import { Search, ChevronDown, Check, X } from "lucide-react"; 
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiFetch } from "@/services/api";
 
 type Props = {
@@ -26,6 +26,7 @@ export default function SalesModal({ open, onClose, products, onSaleCompleted, i
   const [dropdownOpen, setDropdownOpen] = useState<Record<number, boolean>>({});
   const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
   const dropdownRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   // Fix: Use callback ref pattern
   const setDropdownRef = useCallback((idx: number) => (el: HTMLDivElement | null) => {
@@ -145,6 +146,8 @@ export default function SalesModal({ open, onClose, products, onSaleCompleted, i
       return;
     }
 
+    setSubmitting(true);
+
     // Debug log to see what we're sending
     console.log("Submitting sale data:", {
       customer_name: data.customer_name || "Walk-in Customer",
@@ -161,70 +164,64 @@ export default function SalesModal({ open, onClose, products, onSaleCompleted, i
       }),
     });
 
-    const payload = {
-      customer_name: data.customer_name || "Walk-in Customer",
-      payment_method: data.payment_method,
-      amount_paid: 0,
-      items: items.map((it: any, index: number) => {
+    try {
+      // ✅ FIX: Send product_id as INTEGER, not string
+      const saleItems = items.map((it: any, index: number) => {
         const productId = selectedProductIds[index];
         const product = products.find(p => p.id.toString() === productId);
-
+        
         if (!product) {
-          showError(`Product not found for item ${index + 1}`);
           throw new Error(`Product not found for item ${index + 1}`);
         }
-
+        
         return {
-          product: product?.name,
+          product: parseInt(productId), // ✅ Send product ID as integer
           quantity: Number(it.quantity),
           unit_price: Number(it.price)
         };
-      }),
-    };
+      });
 
-    try {
-      const token = localStorage.getItem("access_token");
+      const payload = {
+        customer_name: data.customer_name || "Walk-in Customer",
+        payment_method: data.payment_method,
+        amount_paid: 0,
+        items: saleItems
+      };
 
-      if (!token) {
-        showError("Authentication required. Please log in again.");
-        return;
-      }
+      console.log("📤 Submitting sale payload:", payload);
 
       const res = await apiFetch('/api/sales/', {
         method: "POST",
         body: JSON.stringify(payload),
-
       });
 
       if (!res.ok) {
-      const err = await res.json();
-      console.error("API Error Response:", err);
-      
-      // Better error handling
-      if (err.items) {
-        // Handle item validation errors
-        const itemErrors = err.items.map((itemErr: any, idx: number) => {
-          if (itemErr.product) {
-            return `Item ${idx + 1}: ${itemErr.product}`;
-          }
-          return `Item ${idx + 1}: Invalid`;
-        }).join('; ');
-        showError(itemErrors);
-      } else if (err.non_field_errors) {
-        showError(err.non_field_errors.join(', '));
-      } else if (err.detail) {
-        showError(err.detail);
-      } else if (err.error) {
-        showError(err.error);
-      } else {
-        showError(`Failed to complete sale: ${res.status} ${res.statusText}`);
-      }
+        const err = await res.json();
+        console.error("❌ API Error Response:", err);
         
-        return; // Don't throw, just return
+        // Better error handling
+        if (err.items) {
+          const itemErrors = Object.entries(err.items)
+            .map(([key, value]: [string, any]) => {
+              return `${key}: ${Array.isArray(value) ? value[0] : value}`;
+            })
+            .join('; ');
+          showError(`Item errors: ${itemErrors}`);
+        } else if (err.non_field_errors) {
+          showError(err.non_field_errors.join(', '));
+        } else if (err.detail) {
+          showError(err.detail);
+        } else if (err.error) {
+          showError(err.error);
+        } else {
+          showError(`Failed to complete sale: ${res.status} ${res.statusText}`);
+        }
+        return;
       }
-
 
       const sale = await res.json();
+      console.log("✅ Sale created:", sale);
+      
       showSuccess("Sale completed successfully!");
       reset({ items: [{ product: "", quantity: 1, price: 0 }], customer_name: "", payment_method: "cash" });
       setSelectedProductIds({});
@@ -232,13 +229,16 @@ export default function SalesModal({ open, onClose, products, onSaleCompleted, i
       setSearchTerms({});
       onSaleCompleted(sale);
       onClose();
-    } catch (err) {
-      console.error("Error recording sale:", err);
-      showError("Network error. Please check your connection and try again.");
+    } catch (err: any) {
+      console.error("❌ Error recording sale:", err);
+      showError(err.message || "Sales record failed. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   if (!open) return null;
+
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -445,4 +445,4 @@ export default function SalesModal({ open, onClose, products, onSaleCompleted, i
       </div>
     </div>
   );
-}
+} 

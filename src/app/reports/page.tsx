@@ -34,10 +34,10 @@ import { apiFetch } from "@/services/api";
 
 interface ReportStats {
   totalSales: number;
-  totalPurchases: number;
+  totalCost: number; // ✅ Changed from totalPurchases
   profit: number;
   salesChange: number;
-  purchasesChange: number;
+  costChange: number; // ✅ Changed from purchasesChange
   profitChange: number;
 }
 
@@ -45,6 +45,7 @@ interface MonthlyData {
   month: string;
   sales: number;
   purchases: number;
+  cost: number;
   profit: number;
 }
 
@@ -54,7 +55,6 @@ interface DailySales {
   transactions: number;
   avgTransaction: number;
 }
-
 
 interface CategoryData {
   name: string;
@@ -71,10 +71,10 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<ReportStats>({
     totalSales: 0,
-    totalPurchases: 0,
+    totalCost: 0,
     profit: 0,
     salesChange: 0,
-    purchasesChange: 0,
+    costChange: 0,
     profitChange: 0,
   });
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
@@ -92,7 +92,6 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchReportData();
-    // Set default date range to current month
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -104,65 +103,124 @@ export default function ReportsPage() {
   async function fetchReportData() {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      
-      // Fetch all data in parallel
-      const [salesRes, purchasesRes, inventoryRes] = await Promise.all([
+      const [salesRes, inventoryRes, purchaseRes] = await Promise.all([
         apiFetch('/api/sales/'),
-        apiFetch('/api/purchase-orders/'),
-        apiFetch('/api/inventory/')
+        apiFetch('/api/inventory/'),
+        apiFetch('/api/purchase-orders/?status=approved')
       ]);
 
       let salesData: any[] = [];
-      let purchasesData: any[] = [];
       let inventoryData: any[] = [];
+      let purchaseData: any[] = [];
 
-      if (salesRes.ok) salesData = await salesRes.json();
-      if (purchasesRes.ok) purchasesData = await purchasesRes.json();
-      if (inventoryRes.ok) inventoryData = await inventoryRes.json();
-
-      // Process data
-      processReportData(salesData, purchasesData, inventoryData);
+      if (salesRes.ok) {
+        const data = await salesRes.json();
+        salesData = Array.isArray(data) ? data : [];
+        console.log('📊 Sales data:', salesData.length, 'records');
+      }
       
-    } catch (error) {
-      console.error("Error fetching report data:", error);
+      if (inventoryRes.ok) {
+        const data = await inventoryRes.json();
+        inventoryData = Array.isArray(data) ? data : [];
+        console.log('📋 Inventory:', inventoryData.length, 'products');
+      }
+
+      if (purchaseRes.ok) {
+      const data = await purchaseRes.json();
+      // Handle both array response and paginated response
+      if (Array.isArray(data)) {
+        purchaseData = data;
+      } else if (data.result && Array.isArray(data.result)) {
+        purchaseData = data.result;
+      } else if (Array.isArray(data.purchase_orders)) {
+        purchaseData = data.purchase_orders;
+      }
+      console.log('🛒 Approved Purchases:', purchaseData.length, 'records');
+    }
+
+    processReportData(salesData, inventoryData, purchaseData);
+    
+  } catch (error) {
+    console.error("❌ Error fetching report data:", error);
       showError("Failed to load report data");
     } finally {
       setLoading(false);
     }
   }
 
-  function processReportData(salesData: any[], purchasesData: any[], inventoryData: any[]) {
-    // Calculate total sales
-    const totalSales = salesData.reduce((sum, sale) => 
-      sum + (parseFloat(sale.total_amount) || 0), 0
-    );
+  function processReportData(salesData: any[], inventoryData: any[], purchaseData: any[]) {
+    if (!Array.isArray(salesData)) salesData = [];
+    if (!Array.isArray(inventoryData)) inventoryData = [];
+    if (!Array.isArray(purchaseData)) purchaseData = [];
 
-    // Calculate total purchases (received orders only)
-    const totalPurchases = purchasesData
-      .filter(po => po.status === 'received')
-      .reduce((sum, po) => 
-        sum + (parseFloat(po.total_amount) || 0), 0
-      );
+    // ✅ Create product cost map
+    const productCostMap = new Map<number, number>();
+    inventoryData.forEach((product: any) => {
+      productCostMap.set(product.id, product.cost_price || 0);
+    });
 
-    const profit = totalSales - totalPurchases;
+    // ✅ Calculate ACTUAL profit (revenue - cost of goods sold)
+    let totalSales = 0;
+    let totalCost = 0;
+    let totalPurchases = 0;
 
-    // Generate monthly data
-    const monthly = generateMonthlyData(salesData, purchasesData);
+    salesData.forEach((sale: any) => {
+      const saleRevenue = parseFloat(sale.total_amount) || 0;
+      totalSales += saleRevenue;
+
+      // Calculate cost for each sale item
+      if (sale.items && Array.isArray(sale.items)) {
+        sale.items.forEach((item: any) => {
+          const productId = item.product_id;
+          const quantity = parseInt(item.quantity) || 0;
+          const costPrice = productCostMap.get(productId) || 0;
+          totalCost += quantity * costPrice;
+        });
+      }
+    });
+
+    // ✅ Process approved purchases
+    purchaseData.forEach((purchase: any) => {
+      // Only include approved purchases
+      if (purchase.status === 'approved' || purchase.status === 'received') {
+        // Add purchase amount to purchases total
+        const purchaseAmount = parseFloat(purchase.total_amount) || 0;
+        totalPurchases += purchaseAmount;
+        
+        // IMPORTANT: Add purchase cost to total cost as well
+        // When you purchase goods, that's also part of your costs
+        if (purchase.items && Array.isArray(purchase.items)) {
+          purchase.items.forEach((item: any) => {
+            const productId = item.product_id;
+            const quantity = parseInt(item.quantity) || 0;
+            const unitPrice = parseFloat(item.unit_price) || 0;
+            totalCost += quantity * unitPrice; // Purchase cost
+          });
+        }
+      }
+    });
     
-    // Generate daily sales data
+    const profit = totalSales - totalCost;
+
+    console.log('💰 Profit Calculation:', {
+      totalSales,
+      totalCost,
+      totalPurchases,
+      profit,
+      profitMargin: totalSales > 0 ? ((profit / totalSales) * 100).toFixed(2) + '%' : '0%'
+    });
+
+    const monthly = generateMonthlyData(salesData,purchaseData, productCostMap);
     const daily = generateDailySales(salesData);
-    
-    // Generate category data
     const categories = generateCategoryData(salesData, inventoryData);
 
     setStats({
       totalSales,
-      totalPurchases,
+      totalCost,
       profit,
-      salesChange: calculateChange(totalSales, monthly),
-      purchasesChange: calculateChange(totalPurchases, monthly),
-      profitChange: calculateChange(profit, monthly),
+      salesChange: calculateChange(totalSales, monthly, 'sales'),
+      costChange: calculateChange(totalCost, monthly, 'cost'),
+      profitChange: calculateChange(profit, monthly, 'profit'),
     });
 
     setMonthlyData(monthly);
@@ -170,35 +228,70 @@ export default function ReportsPage() {
     setCategoryData(categories);
   }
 
-  function generateMonthlyData(salesData: any[], purchasesData: any[]): MonthlyData[] {
+  function generateMonthlyData(salesData: any[], purchaseData: any[], productCostMap: Map<number, number>): MonthlyData[] {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentYear = new Date().getFullYear();
     
     return months.map(month => {
       const monthIndex = months.indexOf(month);
-      const monthSales = salesData.filter(sale => {
+      
+      // Filter sales for this month
+      const monthSalesData = salesData.filter(sale => {
         const saleDate = new Date(sale.date || sale.created_at);
         return saleDate.getFullYear() === currentYear && 
                saleDate.getMonth() === monthIndex;
-      }).reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
+      });
 
-      const monthPurchases = purchasesData
-        .filter(po => po.status === 'received')
-        .filter(po => {
-          const poDate = new Date(po.order_date || po.created_at);
-          return poDate.getFullYear() === currentYear && 
-                 poDate.getMonth() === monthIndex;
-        })
-        .reduce((sum, po) => sum + (parseFloat(po.total_amount) || 0), 0);
+      // Filter purchases for this month (approved/received only)
+      const monthPurchaseData = purchaseData.filter(purchase => {
+        const purchaseDate = new Date(purchase.order_date || purchase.created_at);
+        return purchaseDate.getFullYear() === currentYear && 
+              purchaseDate.getMonth() === monthIndex &&
+              (purchase.status === 'approved' || purchase.status === 'received');
+      });
 
-      return {
-        month,
-        sales: monthSales,
-        purchases: monthPurchases,
-        profit: monthSales - monthPurchases
-      };
+      // Calculate revenue
+      const monthSales = monthSalesData.reduce((sum, sale) => 
+        sum + (parseFloat(sale.total_amount) || 0), 0
+      );
+
+      // ✅ Calculate actual cost for this month
+      let monthCost = 0;
+      monthSalesData.forEach(sale => {
+        if (sale.items && Array.isArray(sale.items)) {
+          sale.items.forEach((item: any) => {
+            const productId = item.product_id;
+            const quantity = parseInt(item.quantity) || 0;
+            const costPrice = productCostMap.get(productId) || 0;
+            monthCost += quantity * costPrice;
+          });
+        }
+      });
+
+      monthPurchaseData.forEach(purchase => {
+      if (purchase.items && Array.isArray(purchase.items)) {
+        purchase.items.forEach((item: any) => {
+          const quantity = parseInt(item.quantity) || 0;
+          const unitPrice = parseFloat(item.unit_price) || 0;
+          monthCost += quantity * unitPrice;
+        });
+      }
     });
-  }
+
+    // Calculate purchases total for display
+    const monthPurchases = monthPurchaseData.reduce((sum, purchase) => 
+      sum + (parseFloat(purchase.total_amount) || 0), 0
+    );
+
+    return {
+      month,
+      sales: monthSales,
+      cost: monthCost,
+      purchases: monthPurchases, 
+      profit: monthSales - monthCost
+    };
+  });
+}
 
   function generateDailySales(salesData: any[]): DailySales[] {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -231,13 +324,11 @@ export default function ReportsPage() {
     const categoryMap = new Map<string, { quantity: number, revenue: number }>();
     let totalSold = 0;
 
-    // Create product category map
     const productCategoryMap = new Map<number, string>();
     inventoryData.forEach((product: any) => {
       productCategoryMap.set(product.id, product.category || "Uncategorized");
     });
 
-    // Process sales
     salesData.forEach((sale: any) => {
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach((item: any) => {
@@ -274,11 +365,11 @@ export default function ReportsPage() {
       .sort((a, b) => b.quantity - a.quantity);
   }
 
-  function calculateChange(current: number, monthlyData: MonthlyData[]): number {
+  function calculateChange(current: number, monthlyData: MonthlyData[], field: 'sales' | 'cost' | 'profit'): number {
     if (monthlyData.length < 2) return 0;
     const prevMonth = monthlyData[monthlyData.length - 2];
     const currentMonth = monthlyData[monthlyData.length - 1];
-    const prevValue = currentMonth.month === 'Dec' ? 0 : prevMonth.sales;
+    const prevValue = currentMonth.month === 'Dec' ? 0 : prevMonth[field];
     return prevValue > 0 ? ((current - prevValue) / prevValue) * 100 : 0;
   }
 
@@ -288,7 +379,6 @@ export default function ReportsPage() {
   };
 
   const handleExport = () => {
-    // In a real app, this would generate and download a CSV/PDF
     showSuccess("Export feature coming soon!");
   };
 
@@ -336,7 +426,6 @@ export default function ReportsPage() {
     return null;
   };
 
-  // Fix for Pie chart label render - use the built-in percent value
   const renderCustomizedLabel = (entry: any) => {
     const name = entry.name || '';
     const percent = entry.percent || 0;
@@ -351,7 +440,7 @@ export default function ReportsPage() {
           <Topbar query={query} setQuery={setQuery} />
 
           <main className="pt-20 p-6 mt-4">
-            {/* Header - Responsive */}
+            {/* Header */}
             <div className="mb-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
                 <div>
@@ -377,7 +466,7 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              {/* Filters - Responsive */}
+              {/* Filters */}
               <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mt-6 p-4 bg-white rounded-xl shadow-sm border border-gray-200">
                 <div className="flex items-center gap-2">
                   <Filter size={16} className="text-gray-500" />
@@ -414,7 +503,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Stats Cards - Responsive */}
+            {/* Stats Cards*/}
             {loading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -422,7 +511,7 @@ export default function ReportsPage() {
               </div>
             ) : (
               <>
-                {/* Key Metrics - Responsive grid */}
+                {/* Key Metrics */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -447,19 +536,19 @@ export default function ReportsPage() {
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-600">Total Purchases</h3>
+                        <h3 className="text-sm font-medium text-gray-600">Cost of Goods Sold</h3>
                         <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">
-                          ₦{formatCurrency(stats.totalPurchases)}
+                          ₦{formatCurrency(stats.totalCost)}
                         </p>
                       </div>
                       <div className="p-2 md:p-3 bg-purple-100 rounded-xl">
                         <ShoppingCart className="text-purple-600" size={20} />
                       </div>
                     </div>
-                    <div className={`flex items-center gap-1 ${stats.purchasesChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {stats.purchasesChange >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                    <div className={`flex items-center gap-1 ${stats.costChange >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {stats.costChange >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
                       <span className="text-xs md:text-sm font-medium">
-                        {stats.purchasesChange >= 0 ? '+' : ''}{stats.purchasesChange.toFixed(1)}% from last period
+                        {stats.costChange >= 0 ? '+' : ''}{stats.costChange.toFixed(1)}% from last period
                       </span>
                     </div>
                   </div>
@@ -470,6 +559,9 @@ export default function ReportsPage() {
                         <h3 className="text-sm font-medium text-gray-600">Net Profit</h3>
                         <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">
                           ₦{formatCurrency(stats.profit)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          ({stats.totalSales > 0 ? ((stats.profit / stats.totalSales) * 100).toFixed(1) : '0'}% Margin)
                         </p>
                       </div>
                       <div className="p-2 md:p-3 bg-green-100 rounded-xl">
@@ -485,15 +577,15 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                {/* Charts Section - Responsive */}
+                {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                  {/* Sales & Purchase Trends */}
+                  {/* Revenue & Cost Trends */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
                     <div className="flex items-center justify-between mb-4 md:mb-6">
                       <div>
                         <h2 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                           <LineChart className="text-blue-600" size={20} />
-                          Sales & Purchase Trends
+                          Revenue & Cost Trends
                         </h2>
                         <p className="text-sm text-gray-600 mt-1">Monthly comparison</p>
                       </div>
@@ -529,15 +621,15 @@ export default function ReportsPage() {
                     </div>
                   </div>
 
-                  {/* Inventory by Category - FIXED TypeScript error */}
+                  {/* Category Distribution */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
                     <div className="flex items-center justify-between mb-4 md:mb-6">
                       <div>
                         <h2 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
                           <PieChart className="text-blue-600" size={20} />
-                          Inventory by Category
+                          Sales by Category
                         </h2>
-                        <p className="text-sm text-gray-600 mt-1">Sales distribution</p>
+                        <p className="text-sm text-gray-600 mt-1">Revenue distribution</p>
                       </div>
                       <Package className="text-gray-400" size={18} />
                     </div>
@@ -711,24 +803,34 @@ export default function ReportsPage() {
                         <thead>
                           <tr className="bg-gray-50">
                             <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Month</th>
-                            <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sales</th>
-                            <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Purchases</th>
+                            <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Revenue</th>
+                            <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Cost</th>
                             <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Profit</th>
+                            <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs font-semibold text-gray-600 uppercase">Margin</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {monthlyData.map((month, index) => (
+                          {monthlyData.map((month, index) => {
+                            const margin = month.sales > 0 ? ((month.profit / month.sales) * 100) : 0;
+                            return (
                             <tr key={index} className="hover:bg-gray-50">
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm font-medium text-gray-700">{month.month}</td>
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.sales)}</td>
-                              <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.purchases)}</td>
+                              <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.purchases || 0)}</td>
+                              <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.cost)}</td>
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm font-semibold text-gray-900">
                                 <span className={month.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
                                   ₦{formatCurrency(month.profit)}
                                 </span>
                               </td>
+                              <td className="px-3 py-2 md:px-4 md:py-3 text-sm font-semibold text-gray-900">
+                                <span className={margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                  {typeof margin === 'number' ? margin.toFixed(1) : '0.0'}%
+                                </span>
+                              </td>
                             </tr>
-                          ))}
+                            )
+                          })} 
                         </tbody>
                       </table>
                     </div>

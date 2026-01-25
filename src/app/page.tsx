@@ -71,6 +71,22 @@ export default function DashboardPage() {
     }
   };
 
+  useEffect(() => {
+    const handleDashboardRefresh = () => {
+      console.log('🔄 Dashboard refresh triggered from credit clearance');
+      // Re-fetch all dashboard data
+      fetchDashboardData();
+      fetchDeposits();
+      fetchCredits();
+    };
+    
+    window.addEventListener('dashboardRefresh', handleDashboardRefresh);
+    
+    return () => {
+      window.removeEventListener('dashboardRefresh', handleDashboardRefresh);
+    };
+  }, []);
+
   // Calculate stats from fetched data
   const stats: DashboardStats = {
     totalSales: salesData?.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0) || 0,

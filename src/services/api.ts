@@ -1,5 +1,9 @@
-// src/services/api.ts - FIXED VERSION
-const API_URL = 'https://kasali-oloshe.onrender.com';
+// src/services/api.ts 
+
+const MAX_RETRIES = 2;
+const TIMEOUT_MS = 15000;
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://kasali-oloshe.onrender.com';
+
 
 // CRITICAL FIX: Reduce cache duration
 const CACHE_DURATION = 10 * 1000; // 10 seconds instead of 5 minutes
@@ -78,7 +82,7 @@ export function clearRelatedCaches(endpoint: string) {
 }
 
 // Main API fetch function
-export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+export async function apiFetch(endpoint: string, options: RequestInit = {}, retryCount = 0): Promise<Response> {
   const method = options.method || 'GET';
   const isCacheable = ['GET', 'HEAD'].includes(method.toUpperCase());
   
@@ -107,51 +111,92 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     Object.assign(headers, options.headers);
   }
   
-  // First attempt
-  let response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  // Handle 401 with token refresh
-  if (response.status === 401) {
-    const newToken = await refreshAccessToken();
+  try {
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
     
-    if (newToken) {
-      headers['Authorization'] = `Bearer ${newToken}`;
-      response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers,
-      });
-    } else {
-      localStorage.clear();
-      window.location.href = '/login';
-      throw new Error('Session expired');
+    // First attempt
+    let response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+
+    // Handle 401 with token refresh
+    if (response.status === 401) {
+      const newToken = await refreshAccessToken();
+      
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`;
+        response = await fetch(`${API_URL}${endpoint}`, {
+          ...options,
+          headers,
+          signal: controller.signal
+        });
+      } else {
+        localStorage.clear();
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
     }
-  }
-  
-  // Cache successful GET responses
-  if (isCacheable && response.ok) {
-    try {
-      const data = await response.clone().json();
-      const etag = response.headers.get('etag');
-      cache.set(cacheKey, {
-        data,
-        timestamp: Date.now(),
-        etag: etag || undefined
-      });
-      console.log('💾 Cached response for:', endpoint);
-    } catch (error) {
-      console.error('Failed to cache response:', error);
+    
+    // Cache successful GET responses
+    if (isCacheable && response.ok) {
+      try {
+        const data = await response.clone().json();
+        const etag = response.headers.get('etag');
+        cache.set(cacheKey, {
+          data,
+          timestamp: Date.now(),
+          etag: etag || undefined
+        });
+        console.log('💾 Cached response for:', endpoint);
+      } catch (error) {
+        console.error('Failed to cache response:', error);
+      }
     }
+    
+    // CRITICAL FIX: Clear related caches for mutations
+    if (!isCacheable && response.ok) {
+      clearRelatedCaches(endpoint);
+      
+      // Force refresh related dashboard data
+      if (endpoint.includes('/sales/credits/') || endpoint.includes('/sales/deposits/')) {
+        triggerDashboardRefresh();
+      }
+    }
+    
+    return response;
+  } catch (error: any) {
+    // Network error handling with retry
+    if (error.name === 'AbortError') {
+      console.warn('Request timed out:', endpoint);
+      if (retryCount < MAX_RETRIES) {
+        console.log(`Retrying request (${retryCount + 1}/${MAX_RETRIES})...`);
+        return apiFetch(endpoint, options, retryCount + 1);
+      }
+      throw new Error('Network timeout. Please check your connection.');
+    }
+    
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying request (${retryCount + 1}/${MAX_RETRIES}) due to network error...`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return apiFetch(endpoint, options, retryCount + 1);
+    }
+    
+    throw new Error(`Network error: ${error.message || 'Failed to connect to server'}`);
   }
-  
-  // CRITICAL FIX: Clear related caches for mutations
-  if (!isCacheable && response.ok) {
-    clearRelatedCaches(endpoint);
-  }
-  
-  return response;
+}
+
+// Add this function to trigger dashboard refresh
+function triggerDashboardRefresh() {
+  window.dispatchEvent(new CustomEvent('dashboardRefresh', {
+    detail: { timestamp: Date.now() }
+  }));
+  console.log('🔄 Dashboard refresh triggered');
 }
 
 export function clearApiCache() {
@@ -174,7 +219,20 @@ export function clearCacheByEndpoint(endpointPattern: string | RegExp) {
   console.log(`🗑️ Cleared ${cleared} cache entries for pattern: ${endpointPattern}`);
 }
 
-// SALES - with proper cache invalidation
+// ============================================================================
+// SPECIFIC API FUNCTIONS
+// ============================================================================
+
+// SALES - GET
+export async function getSales() {
+  const response = await apiFetch('/api/sales/');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch sales: ${response.status}`);
+  }
+  return response.json();
+}
+
+// SALES - CREATE
 export async function createSale(saleData: any) {
   try {
     const response = await apiFetch('/api/sales/', {
@@ -183,22 +241,52 @@ export async function createSale(saleData: any) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to create sale: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.detail || errorData.error || `Failed to create sale: ${response.status}`);
     }
     
     const result = await response.json();
-    
-    // CRITICAL FIX: Force immediate cache clear
     clearRelatedCaches('/api/sales/');
-    
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating sale:', error);
     throw error;
   }
 }
 
-// PURCHASE ORDERS - with proper cache invalidation
+// PURCHASE ORDERS - GET ALL
+export async function getPurchaseOrders(params?: { status?: string; page?: number; page_size?: number }) {
+  const queryParams = new URLSearchParams();
+  if (params?.status && params.status !== 'all') {
+    queryParams.append('status', params.status);
+  }
+  if (params?.page) {
+    queryParams.append('page', params.page.toString());
+  }
+  if (params?.page_size) {
+    queryParams.append('page_size', params.page_size.toString());
+  }
+  
+  const url = `/api/purchase-orders/${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+  const response = await apiFetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch purchase orders: ${response.status}`);
+  }
+  
+  return response.json();
+}
+
+// PURCHASE ORDERS - GET ONE
+export async function getPurchaseOrder(id: number) {
+  const response = await apiFetch(`/api/purchase-orders/${id}/`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch purchase order: ${response.status}`);
+  }
+  return response.json();
+}
+
+// PURCHASE ORDERS - CREATE
 export async function createPurchaseOrder(poData: any) {
   try {
     const response = await apiFetch('/api/purchase-orders/', {
@@ -207,22 +295,39 @@ export async function createPurchaseOrder(poData: any) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to create purchase order: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.detail || errorData.error || `Failed to create purchase order: ${response.status}`);
     }
     
     const result = await response.json();
-    
-    // CRITICAL FIX: Force immediate cache clear
     clearRelatedCaches('/api/purchase-orders/');
-    
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating purchase order:', error);
     throw error;
   }
 }
 
-// CREDITS - with proper cache invalidation
+// PURCHASE ORDERS - GET STATISTICS
+export async function getPOStatistics() {
+  const response = await apiFetch('/api/purchase-orders/statistics/');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch PO statistics: ${response.status}`);
+  }
+  return response.json();
+}
+
+// CREDITS - GET
+export async function getCredits(status?: string) {
+  const url = status ? `/api/sales/credits/?status=${status}` : '/api/sales/credits/';
+  const response = await apiFetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch credits: ${response.status}`);
+  }
+  return response.json();
+}
+
+// CREDITS - CLEAR
 export async function clearCredit(creditId: number, paymentData: any) {
   try {
     const response = await apiFetch(`/api/sales/credits/${creditId}/clear/`, {
@@ -231,22 +336,20 @@ export async function clearCredit(creditId: number, paymentData: any) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to clear credit: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to clear credit: ${response.status}`);
     }
     
     const result = await response.json();
-    
-    // CRITICAL FIX: Force immediate cache clear
     clearRelatedCaches('/api/sales/credits/');
-    
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error clearing credit:', error);
     throw error;
   }
 }
 
-// Update PO Status - with cache invalidation
+// PURCHASE ORDERS - UPDATE STATUS
 export async function updatePOStatus(poId: number, newStatus: string) {
   try {
     const response = await apiFetch(`/api/purchase-orders/${poId}/change_status/`, {
@@ -255,21 +358,55 @@ export async function updatePOStatus(poId: number, newStatus: string) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to update PO status: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to update PO status: ${response.status}`);
     }
     
     const result = await response.json();
-    
-    // CRITICAL FIX: Clear related caches
     clearRelatedCaches('/api/purchase-orders/');
-    
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating PO status:', error);
     throw error;
   }
 }
 
-// Export other functions (keeping them for completeness)
-export { API_URL };
-export * from './api'; // Keep all other existing exports
+// DEPOSITS - GET
+export async function getDeposits() {
+  const response = await apiFetch('/api/sales/deposits/');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deposits: ${response.status}`);
+  }
+  return response.json();
+}
+
+// DEPOSITS - CREATE
+export async function createDeposit(depositData: any) {
+  try {
+    const response = await apiFetch('/api/sales/deposits/', {
+      method: 'POST',
+      body: JSON.stringify(depositData),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to create deposit: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    clearRelatedCaches('/api/sales/deposits/');
+    return result;
+  } catch (error: any) {
+    console.error('Error creating deposit:', error);
+    throw error;
+  }
+}
+
+// INVENTORY - GET
+export async function getInventory() {
+  const response = await apiFetch('/api/inventory/');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch inventory: ${response.status}`);
+  }
+  return response.json();
+}

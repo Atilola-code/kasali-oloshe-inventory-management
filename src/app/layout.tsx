@@ -6,6 +6,7 @@ import ToastProvider from "./providers/ToastProvider";
 import { useEffect } from "react";
 import { setupMidnightChecker } from "@/app/utils/dateUtils";
 import { CacheProvider } from './providers/CacheProvider';
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,8 +25,10 @@ export default function RootLayout({
       <body className={`${inter.className}`}>
         <AuthProvider>
           <CacheProvider>
+          <WebSocketProvider>
           <ToastProvider />
           {children}
+          </WebSocketProvider>
           </CacheProvider>
         </AuthProvider>
       </body>
