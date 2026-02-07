@@ -308,7 +308,7 @@ async function fetchStopSaleStatus() {
     const now = new Date();
     const daysDifference = (now.getTime() - saleDate.getTime()) / (1000 * 3600 * 24);
     
-    const isFirstReceiptPrinted = sale.receipt_print_count && sale.receipt_print_count > 0;
+    const isFirstReceiptPrinted = sale.receipt_print_count >=1
     const isOlderThan7Days = daysDifference > 7;
     
     if (userRole === "CASHIER") {

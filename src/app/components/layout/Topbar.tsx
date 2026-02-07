@@ -4,6 +4,7 @@ import { Search, Bell, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import MessageNotificationBadge from "../chat/MessageNotificationBadge";
 
 type Props = {
   query: string;
@@ -75,6 +76,9 @@ export default function Topbar({ query, setQuery, onRegisterClick }: Props) {
             Add User
           </button>
         )}
+
+        {/* Message Notification Badge */}
+        <MessageNotificationBadge />
 
         {/* Notifications */}
         <button className="relative p-2 hover:bg-gray-100 rounded-lg transition">
