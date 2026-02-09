@@ -126,7 +126,7 @@ export default function ViewExpenseModal({ open, onClose, expense }: ViewExpense
               <div className="grid grid-cols-2 gap-4">
                 {expense.recipient && (
                   <div>
-                    <label className="text-sm text-gray-600 block mb-1 flex items-center gap-2">
+                    <label className="text-sm text-gray-600  mb-1 flex items-center gap-2">
                       <User className="w-4 h-4" />
                       Recipient
                     </label>
@@ -135,7 +135,7 @@ export default function ViewExpenseModal({ open, onClose, expense }: ViewExpense
                 )}
                 {expense.reference_number && (
                   <div>
-                    <label className="text-sm text-gray-600 block mb-1 flex items-center gap-2">
+                    <label className="text-sm text-gray-600 mb-1 flex items-center gap-2">
                       <Hash className="w-4 h-4" />
                       Reference Number
                     </label>
@@ -143,7 +143,7 @@ export default function ViewExpenseModal({ open, onClose, expense }: ViewExpense
                   </div>
                 )}
                 <div>
-                  <label className="text-sm text-gray-600 block mb-1 flex items-center gap-2">
+                  <label className="text-sm text-gray-600  mb-1 flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
                     Date
                   </label>
