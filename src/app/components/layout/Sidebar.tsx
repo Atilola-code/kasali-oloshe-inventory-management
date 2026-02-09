@@ -95,7 +95,7 @@ function ComingSoonModal({ isOpen, onClose, featureName }: {
                 <span className="text-sm font-medium">Under Development</span>
               </div>
               <p className="text-xs text-blue-600 mt-1">
-                Expected launch: Q1 2024
+                Expected launch: Q2 2026
               </p>
             </div>
             

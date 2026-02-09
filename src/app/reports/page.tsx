@@ -34,10 +34,10 @@ import { apiFetch } from "@/services/api";
 
 interface ReportStats {
   totalSales: number;
-  totalCost: number; // ✅ Changed from totalPurchases
+  totalCost: number;
   profit: number;
   salesChange: number;
-  costChange: number; // ✅ Changed from purchasesChange
+  costChange: number; 
   profitChange: number;
 }
 
