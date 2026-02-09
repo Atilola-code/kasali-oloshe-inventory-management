@@ -196,7 +196,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const playNotificationSound = () => {
     try {
-      const audio = new Audio('/notification.mp3'); // Add this sound file to your public folder
+      const audio = new Audio('/notification.mp3'); 
       audio.volume = 0.5;
       audio.play().catch(err => console.log('Could not play notification sound:', err));
     } catch (error) {

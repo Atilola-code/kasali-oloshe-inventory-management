@@ -816,7 +816,7 @@ export default function ReportsPage() {
                             <tr key={index} className="hover:bg-gray-50">
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm font-medium text-gray-700">{month.month}</td>
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.sales)}</td>
-                              <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.purchases || 0)}</td>
+                              {/* <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.purchases || 0)}</td> */}
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm text-gray-600">₦{formatCurrency(month.cost)}</td>
                               <td className="px-3 py-2 md:px-4 md:py-3 text-sm font-semibold text-gray-900">
                                 <span className={month.profit >= 0 ? 'text-green-600' : 'text-red-600'}>

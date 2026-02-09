@@ -1,5 +1,5 @@
 // src/app/components/sales/EditSaleModal.tsx
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Product } from "@/app/types";
 import { showError, showSuccess } from "@/app/utils/toast";
@@ -31,6 +31,31 @@ export default function EditSaleModal({ open, onClose, products, saleId, onSaleU
   });
   
   const items = watch("items") || [];
+
+  const discountAmount = watch("discount_amount") || 0;
+
+  // ✅ Add this useMemo
+  const calculatedTotals = useMemo(() => {
+    let subtotal = 0;
+    
+    items.forEach((_: any, idx: number) => {
+      const productId = selectedProductIds[idx];
+      const product = products.find(p => p.id.toString() === productId);
+      const quantity = parseFloat(items[idx]?.quantity) || 0;
+      const price = parseFloat(items[idx]?.price) || 0;
+      
+      if (product && quantity > 0 && price > 0) {
+        subtotal += quantity * price;
+      }
+    });
+
+  const discount = Math.min(parseFloat(discountAmount.toString()) || 0, subtotal);
+  const total = subtotal - discount;
+
+  return { subtotal, discountAmount: discount, total };
+}, [items, selectedProductIds, products, discountAmount]);
+
+
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -248,6 +273,13 @@ export default function EditSaleModal({ open, onClose, products, saleId, onSaleU
 
   if (!open) return null;
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+  
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto ml-16 mt-16 py-6 px-10">
@@ -425,7 +457,24 @@ export default function EditSaleModal({ open, onClose, products, saleId, onSaleU
               );
             })}
           </div>
-
+          <div className="border-t bg-gray-50 p-4">
+            <div className="flex items-center justify-between text-sm">
+              <div>
+                <span className="text-gray-600">Subtotal: </span>
+                <span className="font-semibold">₦{formatCurrency(calculatedTotals.subtotal)}</span>
+              </div>
+              {calculatedTotals.discountAmount > 0 && (
+                <div>
+                  <span className="text-gray-600">Discount: </span>
+                  <span className="font-semibold text-red-600">-₦{formatCurrency(calculatedTotals.discountAmount)}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-gray-600">Total: </span>
+                <span className="font-bold text-green-700">₦{formatCurrency(calculatedTotals.total)}</span>
+              </div>
+            </div>
+          </div>  
           <div className="flex justify-end gap-2 pt-4">
             <button
               type="button"

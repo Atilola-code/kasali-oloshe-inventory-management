@@ -17,7 +17,9 @@ import {
   BadgeDollarSign,
   X,
   AlertCircle,
-  MessagesSquare
+  MessagesSquare,
+  Clock,
+  Construction
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { showError } from "@/app/utils/toast";
@@ -34,9 +36,89 @@ const links = [
   { name: "User Management", href: "/users", icon: Users, roles: ['ADMIN', 'MANAGER']},
   { name: "Live chat", href: "/live-chat", icon: MessagesSquare, roles: ['ADMIN', 'MANAGER', 'CASHIER'], showBadge: true },
   { name: "Invoices", href: "/invoices", icon: Receipt, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
-  { name: "Tax Computation", href: "/tax", icon: BadgeDollarSign, roles: ['ADMIN', 'MANAGER'] },
-  { name: "Settings", href: "/settings", icon: Settings, roles: ['ADMIN', 'MANAGER', 'CASHIER']},
+  { name: "Tax Computation", href: "/tax", icon: BadgeDollarSign, roles: ['ADMIN', 'MANAGER'], comingSoon: true },
+  { name: "Expense", href: "/expenses", icon: Settings, roles: ['ADMIN', 'MANAGER', 'CASHIER']},
 ];
+
+// Coming Soon Modal Component
+function ComingSoonModal({ isOpen, onClose, featureName }: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  featureName: string;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md transform transition-all">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-50 rounded-lg">
+              <Construction className="w-6 h-6 text-yellow-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900">Coming Soon</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        {/* Body */}
+        <div className="p-6">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-yellow-100 to-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Clock className="w-10 h-10 text-yellow-600" />
+            </div>
+            
+            <h4 className="text-xl font-bold text-gray-900 mb-2">
+              {featureName}
+            </h4>
+            
+            <p className="text-gray-600 mb-4">
+              We're currently working on this feature to bring you an even better experience.
+            </p>
+            
+            <div className="bg-blue-50 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 text-blue-700">
+                <Construction className="w-4 h-4" />
+                <span className="text-sm font-medium">Under Development</span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                Expected launch: Q1 2024
+              </p>
+            </div>
+            
+            <p className="text-sm text-gray-500">
+              This feature will include comprehensive tax calculation, VAT reporting,
+              and tax compliance tools for your business.
+            </p>
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="flex gap-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium hover:from-blue-700 hover:to-blue-600 transition focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Logout Modal Component
 function LogoutModal({ isOpen, onClose, onConfirm }: { 
@@ -116,6 +198,8 @@ export default function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [comingSoonFeature, setComingSoonFeature] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Fetch unread message count
@@ -140,7 +224,7 @@ export default function Sidebar() {
   }
 };
 
-  const handleNavigation = (href: string, allowedRoles: string[]) => {
+  const handleNavigation = (href: string, allowedRoles: string[], comingSoon = false, featureName = "") => {
     if (!user) {
       router.push('/login');
       return;
@@ -148,6 +232,13 @@ export default function Sidebar() {
     
     if (!allowedRoles.includes(user.role)) {
       showError('You do not have access to this page');
+      return;
+    }
+    
+    // Show coming soon modal if feature is not ready
+    if (comingSoon) {
+      setComingSoonFeature(featureName);
+      setShowComingSoonModal(true);
       return;
     }
     
@@ -168,6 +259,11 @@ export default function Sidebar() {
     setShowLogoutModal(false);
   };
 
+  const handleComingSoonClose = () => {
+    setShowComingSoonModal(false);
+    setComingSoonFeature("");
+  };
+
   // Don't show sidebar on login/signup pages
   if (pathname === '/login' || pathname === '/signup') {
     return null;
@@ -184,14 +280,14 @@ export default function Sidebar() {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {links.map(({ name, href, icon: Icon, roles, viewableBy, showBadge }) => {
+          {links.map(({ name, href, icon: Icon, roles, viewableBy, showBadge, comingSoon }) => {
             const hasAccess = user && roles.includes(user.role);
             const canViewInSidebar = !viewableBy || (user && roles.includes(user.role));
             
             return (
               <button
                 key={name}
-                onClick={() => handleNavigation(href, roles)}
+                onClick={() => handleNavigation(href, roles, comingSoon, name)}
                 className={`flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded hover:bg-gray-100 transition ${
                   pathname === href ? "bg-blue-100 text-blue-600" : "text-gray-700"
                 } ${!canViewInSidebar ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -201,6 +297,11 @@ export default function Sidebar() {
                 <div className="flex items-center">
                   <Icon className={`mr-3 h-5 w-5 ${pathname === href ? 'text-blue-600' : 'text-gray-500'}`} />
                   {name}
+                  {comingSoon && (
+                    <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
+                      Soon
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {showBadge && unreadCount > 0 && (
@@ -243,6 +344,13 @@ export default function Sidebar() {
           </div>
         )}
       </aside>
+
+      {/* Coming Soon Modal */}
+      <ComingSoonModal
+        isOpen={showComingSoonModal}
+        onClose={handleComingSoonClose}
+        featureName={comingSoonFeature}
+      />
 
       {/* Logout Modal */}
       <LogoutModal

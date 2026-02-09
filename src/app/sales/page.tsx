@@ -66,6 +66,28 @@ export default function SalesPage() {
 
   const forceRefresh = useForceRefresh();
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownOpen) {
+        const dropdownElements = document.querySelectorAll('[data-dropdown-id]');
+        let clickedInside = false;
+        
+        dropdownElements.forEach((el) => {
+          if (el.contains(event.target as Node)) {
+            clickedInside = true;
+          }
+        });
+        
+        if (!clickedInside) {
+          setDropdownOpen(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
   async function fetchSales() {
     setLoading(true);
     try {
@@ -631,25 +653,25 @@ async function fetchStopSaleStatus() {
                       </div>
                       <div className="px-5 py-2 border-t border-gray-200">
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-max">
+                          <table className="w-full">
                             <thead>
                               <tr>
-                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap" style={{ width: '18%' }}>
                                   Invoice ID
                                 </th>
-                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap" style={{ width: '20%' }}>
                                   Customer
                                 </th>
-                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap" style={{ width: '15%' }}>
                                   Amount
                                 </th>
-                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap" style={{ width: '15%' }}>
                                   Payment Method
                                 </th>
-                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap" style={{ width: '18%' }}>
                                   Date & Time
                                 </th>
-                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+                                <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider px-4 py-2 whitespace-nowrap" style={{ width: '14%' }}>
                                   Actions
                                 </th>
                               </tr>
@@ -662,6 +684,14 @@ async function fetchStopSaleStatus() {
                     {/* Scrollable Table Body */}
                     <div className="flex-1 overflow-auto">
                       <table className="w-full">
+                        <colgroup>
+                          <col style={{ width: '18%' }} />
+                          <col style={{ width: '20%' }} />
+                          <col style={{ width: '15%' }} />
+                          <col style={{ width: '15%' }} />
+                          <col style={{ width: '18%' }} />
+                          <col style={{ width: '14%' }} />
+                        </colgroup>
                         <tbody className="divide-y divide-gray-200 bg-white">
                           {loading ? (
                             <tr>
@@ -711,12 +741,14 @@ async function fetchStopSaleStatus() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
-                                    {record.customer_name || '—'}
-                                    {isDeposit && record.bank_name && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        Bank: {record.bank_name}
-                                      </div>
-                                    )}
+                                    <div>
+                                      {record.customer_name || '—'}
+                                      {isDeposit && record.bank_name && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Bank: {record.bank_name}
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className={`px-4 py-4 text-sm font-semibold whitespace-nowrap ${
                                     isDeposit ? 'text-red-900' : 'text-gray-900'

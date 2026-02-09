@@ -1,3 +1,4 @@
+// src/app/page.tsx - FIXED Dashboard with Expense Deduction
 "use client";
 import { useEffect, useState } from "react";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -30,6 +31,7 @@ interface DashboardStats {
 export default function DashboardPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [totalExpenses, setTotalExpenses] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -45,6 +47,34 @@ export default function DashboardPage() {
   const { data: depositsData, fetchData: fetchDeposits } = useFetchWithCache<any[]>('/api/sales/deposits/');
   const { data: creditsData, fetchData: fetchCredits } = useFetchWithCache<any[]>('/api/sales/credits/');
 
+  // ✅ FIXED: Fetch expenses on mount and when dashboard refreshes
+  const fetchExpenses = async () => {
+    try {
+      const response = await apiFetch('/api/expenses/statistics/');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('💰 Expenses fetched:', data.total_expenses);
+        setTotalExpenses(data.total_expenses || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching expenses:", error);
+      setTotalExpenses(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpenses();
+    
+    // Listen for expense changes
+    const handleExpenseUpdate = () => {
+      console.log('🔄 Expense update detected, refreshing...');
+      fetchExpenses();
+    };
+    
+    window.addEventListener('dashboardRefresh', handleExpenseUpdate);
+    return () => window.removeEventListener('dashboardRefresh', handleExpenseUpdate);
+  }, []);
+
   // Save refresh interval
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -56,12 +86,13 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch all data in parallel using hooks
+      // Fetch all data in parallel including expenses
       await Promise.all([
         fetchSales(),
         fetchInventory(),
         fetchDeposits(),
-        fetchCredits()
+        fetchCredits(),
+        fetchExpenses() // ✅ Include expenses in dashboard refresh
       ]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -73,11 +104,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const handleDashboardRefresh = () => {
-      console.log('🔄 Dashboard refresh triggered from credit clearance');
-      // Re-fetch all dashboard data
+      console.log('🔄 Dashboard refresh triggered');
       fetchDashboardData();
-      fetchDeposits();
-      fetchCredits();
     };
     
     window.addEventListener('dashboardRefresh', handleDashboardRefresh);
@@ -86,6 +114,16 @@ export default function DashboardPage() {
       window.removeEventListener('dashboardRefresh', handleDashboardRefresh);
     };
   }, []);
+
+  // ✅ FIXED: Calculate total deposits
+  const totalDeposits = depositsData?.reduce((sum, deposit) => 
+    sum + (parseFloat(deposit.amount) || 0), 0
+  ) || 0;
+
+  // ✅ FIXED: Calculate digital sales (transfer + POS)
+  const totalDigitalSales = salesData?.filter(sale => 
+    sale.payment_method === 'transfer' || sale.payment_method === 'pos'
+  ).reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0) || 0;
 
   // Calculate stats from fetched data
   const stats: DashboardStats = {
@@ -106,12 +144,21 @@ export default function DashboardPage() {
       }
       return sum;
     }, 0) || 0,
-    cashAtBank: (depositsData?.reduce((sum, deposit) => sum + (parseFloat(deposit.amount) || 0), 0) || 0) +
-      (salesData?.filter(sale => sale.payment_method === 'transfer' || sale.payment_method === 'pos')
-        .reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0) || 0),
+    // ✅ FIXED: Cash at Bank = Total Deposits + Digital Sales - Total Expenses
+    cashAtBank: totalDeposits + totalDigitalSales - totalExpenses,
     totalProducts: inventoryData?.length || 0,
     totalItemsInStock: inventoryData?.reduce((sum, product) => sum + parseFloat(product.quantity || 0), 0) || 0,
   };
+
+  // ✅ ADDED: Log calculation for debugging
+  useEffect(() => {
+    console.log('📊 Cash at Bank Calculation:', {
+      totalDeposits,
+      totalDigitalSales,
+      totalExpenses,
+      cashAtBank: stats.cashAtBank
+    });
+  }, [totalDeposits, totalDigitalSales, totalExpenses]);
 
   // Initial fetch and auto-refresh
   useEffect(() => {
@@ -122,7 +169,7 @@ export default function DashboardPage() {
     }, refreshInterval);
     
     return () => clearInterval(intervalId);
-  }, [refreshInterval, fetchSales, fetchInventory, fetchDeposits, fetchCredits]);
+  }, [refreshInterval]);
 
   // Handle dashboard refresh event
   useEffect(() => {
@@ -170,22 +217,22 @@ export default function DashboardPage() {
     return `${minutes} minutes`;
   };
 
-  // Cache warming on app start (moved to app level)
+  // Cache warming on app start
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const warmUpCache = async () => {
         const endpoints = [
           '/api/sales/?limit=10',
           '/api/inventory/?limit=20',
-          '/api/purchase-orders/statistics/'
+          '/api/purchase-orders/statistics/',
+          '/api/expenses/statistics/' // ✅ Include expenses in cache warming
         ];
         
         endpoints.forEach(endpoint => {
-          fetch(endpoint).catch(() => {}); // Silent fail
+          fetch(endpoint).catch(() => {});
         });
       };
       
-      // Warm up when idle
       if ('requestIdleCallback' in window) {
         (window as any).requestIdleCallback(warmUpCache);
       } else {
@@ -289,10 +336,11 @@ export default function DashboardPage() {
                       responsive={true}
                     />
 
+                    {/* ✅ FIXED: Cash at Bank now properly deducts expenses */}
                     <ToggleStatsCard
                       title="Cash at Bank"
                       value={stats.cashAtBank}
-                      subtitle="total deposits"
+                      subtitle={`Deposits + Digital - Expenses (${formatCurrency(totalExpenses)})`}
                       icon={<Building className="text-indigo-600" size={20} />}
                       color="text-gray-900"
                       bgColor="bg-indigo-100"
@@ -333,6 +381,20 @@ export default function DashboardPage() {
                   Data is cached for optimal performance. Your refresh interval preference is saved automatically.
                 </p>
               </div>
+
+              {/* ✅ ADDED: Expense Breakdown Card */}
+              {totalExpenses > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 md:p-4 mb-4 md:mb-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-800 mb-1">Total Expenses</h3>
+                      <p className="text-2xl font-bold text-red-900">₦{formatCurrency(totalExpenses)}</p>
+                      <p className="text-xs text-red-600 mt-1">Deducted from Cash at Bank</p>
+                    </div>
+                    <DollarSign className="w-8 h-8 text-red-600" />
+                  </div>
+                </div>
+              )}
 
               {/* Recent Sales Activity */}
               <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-200 mb-4 md:mb-6">

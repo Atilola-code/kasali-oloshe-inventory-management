@@ -73,6 +73,7 @@ export type CreditPayment = {
   id: number;
   credit_id: number;
   amount_paid: number;
+  amount: number;
   customer_name: string;
   payment_method: 'cash' | 'transfer' | 'pos' | 'bank';
   remarks?: string;

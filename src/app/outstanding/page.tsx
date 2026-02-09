@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import CreditHistoryModal from "../components/outstandingComponent/CreditHistoryModal";
 import { 
   ChevronRight, 
   Calendar, 
@@ -16,7 +17,8 @@ import {
   Filter,
   Download,
   RefreshCw,
-  Printer
+  Printer,
+  History
 } from "lucide-react";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
 import Sidebar from "../components/layout/Sidebar";
@@ -55,6 +57,8 @@ export default function OutstandingPage() {
   const [totalClearedAmount, setTotalClearedAmount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingDashboard, setSyncingDashboard] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedCreditForHistory, setSelectedCreditForHistory] = useState<Credit | null>(null);
 
   const userRole = user?.role as UserRole | null;
 
@@ -185,6 +189,12 @@ export default function OutstandingPage() {
 
     setDailyCredits(sortedDailyCredits);
   }
+
+  const handleViewHistory = (credit: Credit) => {
+    setSelectedCreditForHistory(credit);
+    setHistoryModalOpen(true);
+    setDropdownOpen(null);
+  };
 
   // Add this function to handle dashboard refresh
   const triggerDashboardRefresh = async () => {
@@ -631,8 +641,9 @@ export default function OutstandingPage() {
             )}
 
             {view === "detail" && selectedDailyCredit && (
-              <div>
-                <div className="mb-6 mt-8">
+              <div className="h-[calc(100vh-180px)] flex flex-col">
+                {/* Header section - fixed height */}
+                <div className="flex-shrink-0 mb-6">
                   <button
                     onClick={() => {
                       setView("list");
@@ -642,8 +653,8 @@ export default function OutstandingPage() {
                   >
                     ← Back to Credit List
                   </button>
-                  <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-800">{selectedDate}</h1>
+                  <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-bold text-gray-800">{selectedDate}</h1>
                     <div className="flex gap-2">
                       <button
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -661,7 +672,7 @@ export default function OutstandingPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-4 mt-2">
+                  <div className="flex flex-wrap gap-4 mb-6">
                     <div className="bg-red-50 px-3 py-2 rounded-lg">
                       <p className="text-sm text-red-600">Outstanding: {formatCurrency(selectedDailyCredit.totalOutstanding)}</p>
                     </div>
@@ -680,105 +691,179 @@ export default function OutstandingPage() {
                   </div>
                 </div>
 
-                {/* Credits Table */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Invoice ID</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Amount</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount Paid</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Outstanding</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {selectedDailyCredit.credits.map((credit) => (
-                          <tr key={credit.id} className="hover:bg-gray-50 transition">
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                              {credit.invoice_id}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{credit.customer_name || '—'}</td>
-                            <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                              {formatCurrency(credit.total_amount)}
-                            </td>
-                            <td className="px-6 py-4 text-sm font-semibold text-green-700">
-                              {formatCurrency(credit.amount_paid)}
-                            </td>
-                            <td className="px-6 py-4 text-sm font-semibold text-red-700">
-                              {formatCurrency(credit.outstanding_amount)}
-                            </td>
-                            <td className="px-6 py-4 text-sm">
-                              {getStatusBadge(credit.status)}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {new Date(credit.date).toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </td>
-                            <td className="px-6 py-4 text-sm relative">
-                              <div className="flex items-center space-x-2">
-                                <button
-                                  onClick={() => handleClearCredit(credit)}
-                                  className="text-blue-600 hover:text-blue-800 font-medium"
-                                >
-                                  Clear Credit
-                                </button>
-                                <button
-                                  onClick={() => setDropdownOpen(dropdownOpen === credit.id.toString() ? null : credit.id.toString())}
-                                  className="p-1 hover:bg-gray-100 rounded"
-                                >
-                                  <MoreVertical className="w-4 h-4 text-gray-500" />
-                                </button>
-                              </div>
-                              
-                              {dropdownOpen === credit.id.toString() && (
-                                <div className="absolute right-6 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                                  <div className="py-1">
+                {/* ✅ FIXED: Table container with 75% height */}
+                <div className="flex-1 min-h-0">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
+                    {/* Fixed Table Header */}
+                    <div className="flex-shrink-0 bg-gray-50 border-b border-gray-200">
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '15%' }}>Invoice ID</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '15%' }}>Customer</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '12%' }}>Total Amount</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '12%' }}>Amount Paid</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '12%' }}>Outstanding</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '10%' }}>Status</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '10%' }}>Time</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap" style={{ width: '14%' }}>Actions</th>
+                          </tr>
+                        </thead>
+                      </table>
+                    </div>
+
+                    {/* Scrollable Table Body with 75% height */}
+                    <div className="flex-1 overflow-y-auto max-h-[75vh] scrollbar-thin">
+                      <table className="w-full">
+                        <colgroup>
+                          <col style={{ width: '15%' }} />
+                          <col style={{ width: '15%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '14%' }} />
+                        </colgroup>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {selectedDailyCredit.credits.map((credit) => (
+                            <tr key={credit.id} className="hover:bg-gray-50 transition relative">
+                              <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                                {credit.invoice_id}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">{credit.customer_name || '—'}</td>
+                              <td className="px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
+                                {formatCurrency(credit.total_amount)}
+                              </td>
+                              <td className="px-6 py-4 text-sm font-semibold text-green-700 whitespace-nowrap">
+                                {formatCurrency(credit.amount_paid)}
+                              </td>
+                              <td className="px-6 py-4 text-sm font-semibold text-red-700 whitespace-nowrap">
+                                {formatCurrency(credit.outstanding_amount)}
+                              </td>
+                              <td className="px-6 py-4 text-sm whitespace-nowrap">
+                                {getStatusBadge(credit.status)}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                                {new Date(credit.date).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="px-6 py-4 text-sm whitespace-nowrap relative z-10">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleClearCredit(credit)}
+                                    className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap text-sm"
+                                  >
+                                    Clear Credit
+                                  </button>
+                                  <div className="relative">
                                     <button
-                                      onClick={() => handleClearCredit(credit)}
-                                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDropdownOpen(dropdownOpen === credit.id.toString() ? null : credit.id.toString());
+                                      }}
+                                      className="p-1 hover:bg-gray-100 rounded relative z-20"
                                     >
-                                      <CheckCircle className="w-4 h-4 mr-2" />
-                                      Record Payment
+                                      <MoreVertical className="w-4 h-4 text-gray-500" />
                                     </button>
-                                    <button
-                                      onClick={() => handleMarkAsCleared(credit)}
-                                      disabled={credit.status === 'cleared'}
-                                      className={`flex items-center w-full px-4 py-2 text-sm ${
-                                        credit.status !== 'cleared'
-                                          ? 'text-gray-700 hover:bg-gray-100'
-                                          : 'text-gray-400 cursor-not-allowed'
-                                      }`}
-                                    >
-                                      <CheckCircle className="w-4 h-4 mr-2" />
-                                      Mark as Cleared
-                                    </button>
-                                    <button
-                                      onClick={() => handleMarkAsPartiallyPaid(credit)}
-                                      disabled={credit.status === 'partially_paid'}
-                                      className={`flex items-center w-full px-4 py-2 text-sm ${
-                                        credit.status !== 'partially_paid'
-                                          ? 'text-gray-700 hover:bg-gray-100'
-                                          : 'text-gray-400 cursor-not-allowed'
-                                      }`}
-                                    >
-                                      <AlertCircle className="w-4 h-4 mr-2" />
-                                      Mark as Partial
-                                    </button>
+                                    
+                                    {/* ✅ FIXED: Dropdown positioned outside with proper z-index */}
+                                    {dropdownOpen === credit.id.toString() && (
+                                      <>
+                                        {/* Backdrop to close dropdown when clicking outside */}
+                                        <div 
+                                          className="fixed inset-0 z-40"
+                                          onClick={() => setDropdownOpen(null)}
+                                        />
+                                        <div 
+                                          className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl z-50 border border-gray-200"
+                                          style={{ 
+                                            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
+                                          }}
+                                        >
+                                          <div className="py-2">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleClearCredit(credit);
+                                                setDropdownOpen(null);
+                                              }}
+                                              className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                            >
+                                              <CheckCircle className="w-4 h-4 mr-3 text-blue-500" />
+                                              <div className="text-left">
+                                                <div className="font-medium">Record Payment</div>
+                                                <div className="text-xs text-gray-500">Enter payment details</div>
+                                              </div>
+                                            </button>
+                                            <div className="border-t border-gray-100 my-1"></div>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleViewHistory(credit);
+                                                setDropdownOpen(null);
+                                              }}
+                                              className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                            >
+                                              <History className="w-4 h-4 mr-3 text-purple-500" />
+                                              <div className="text-left">
+                                                <div className="font-medium">Payment History</div>
+                                                <div className="text-xs text-gray-500">View all payments</div>
+                                              </div>
+                                            </button>
+                                            <div className="border-t border-gray-100 my-1"></div>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleMarkAsCleared(credit);
+                                                setDropdownOpen(null);
+                                              }}
+                                              disabled={credit.status === 'cleared'}
+                                              className={`flex items-center w-full px-4 py-3 text-sm ${
+                                                credit.status !== 'cleared'
+                                                  ? 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                                                  : 'text-gray-400 cursor-not-allowed'
+                                              } transition-colors`}
+                                            >
+                                              <CheckCircle className="w-4 h-4 mr-3 text-green-500" />
+                                              <div className="text-left">
+                                                <div className="font-medium">Mark as Cleared</div>
+                                                <div className="text-xs text-gray-500">Update status to cleared</div>
+                                              </div>
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleMarkAsPartiallyPaid(credit);
+                                                setDropdownOpen(null);
+                                              }}
+                                              disabled={credit.status === 'partially_paid'}
+                                              className={`flex items-center w-full px-4 py-3 text-sm ${
+                                                credit.status !== 'partially_paid'
+                                                  ? 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                                                  : 'text-gray-400 cursor-not-allowed'
+                                              } transition-colors`}
+                                            >
+                                              <AlertCircle className="w-4 h-4 mr-3 text-yellow-500" />
+                                              <div className="text-left">
+                                                <div className="font-medium">Mark as Partial</div>
+                                                <div className="text-xs text-gray-500">Update status to partially paid</div>
+                                              </div>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -797,6 +882,17 @@ export default function OutstandingPage() {
           }}
           credit={selectedCreditForClear}
           onCreditCleared={handleCreditCleared}
+        />
+      )}
+
+      {selectedCreditForHistory && (
+        <CreditHistoryModal
+          open={historyModalOpen}
+          onClose={() => {
+            setHistoryModalOpen(false);
+            setSelectedCreditForHistory(null);
+          }}
+          credit={selectedCreditForHistory}
         />
       )}
     </ProtectedRoute>

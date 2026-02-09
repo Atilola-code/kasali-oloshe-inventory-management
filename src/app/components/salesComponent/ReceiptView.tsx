@@ -26,21 +26,38 @@ export default function ReceiptView({ saleId, onDone }: Props) {
         setLoading(true);
         const token = localStorage.getItem("access_token");
         
-        const res = await apiFetch('/api/sales/')
+        const res = await apiFetch(`/api/sales/?invoice_id=${saleId}`);
 
         if (!res.ok) {
-          throw new Error("Failed to fetch sale");
+          const allRes = await apiFetch('/api/sales/');
+          if (!allRes.ok) {
+            throw new Error("Failed to fetch sales");
+          }
+          
+          const allData = await allRes.json();
+          // Find the sale with matching invoice_id
+          const sale = Array.isArray(allData) 
+            ? allData.find((s: any) => s.invoice_id === saleId)
+            : allData;
+          
+          setSaleData(sale);
+          setHasPrinted(sale?.receipt_print_count && sale.receipt_print_count > 0);
+          return;
         }
 
         const data = await res.json();
         
-        // Find the sale with matching invoice_id
-        const sale = Array.isArray(data) 
-          ? data.find((s: any) => s.invoice_id === saleId)
-          : data;
-        
-        setSaleData(sale);
-        setHasPrinted(sale?.receipt_print_count && sale.receipt_print_count > 0);
+        // Check if data is an array or single object
+        if (Array.isArray(data) && data.length > 0) {
+          // Find the specific sale
+          const sale = data.find((s: any) => s.invoice_id === saleId);
+          setSaleData(sale);
+          setHasPrinted(sale?.receipt_print_count && sale.receipt_print_count > 0);
+        } else if (data && !Array.isArray(data)) {
+          // Single sale object
+          setSaleData(data);
+          setHasPrinted(data?.receipt_print_count && data.receipt_print_count > 0);
+        }
       } catch (err) {
         console.error("Error fetching sale:", err);
       } finally {
@@ -249,11 +266,11 @@ export default function ReceiptView({ saleId, onDone }: Props) {
               </span>
             </div>
             
-            {saleData.discount_amount > 0 && (
+            {saleData.discount_amount > 1 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Discount:</span>
                 <span className="font-medium text-red-600">
-                  -₦{Number(saleData.discount_amount).toLocaleString('en-NG', {
+                  ₦{Number(saleData.discount_amount).toLocaleString('en-NG', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
                   })}

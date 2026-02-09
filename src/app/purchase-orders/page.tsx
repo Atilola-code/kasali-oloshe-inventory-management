@@ -1,4 +1,4 @@
-//src/app/purchase-orders/page.tsx
+// src/app/purchase-orders/page.tsx - FIXED SCROLLING VERSION
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
@@ -10,7 +10,7 @@ import { PurchaseOrder, Product, POStatistics } from "../types";
 import { showSuccess, showError } from "@/app/utils/toast";
 import { apiFetch, clearCacheByEndpoint, clearRelatedCaches } from "@/services/api";
 import { useFetchWithCache, useNetworkStatus } from "../hooks/useFetchWithCache";
-import { useForceRefresh } from "../hooks/useForceRefresh"; // ← ADD THIS
+import { useForceRefresh } from "../hooks/useForceRefresh";
 import { ErrorBoundary } from "../components/shared/ErrorBoundary";
 import PurchaseOrdersTable from "./PurchaseOrdersTable";
 import PurchaseOrdersStats from "./PurchaseOrdersStats";
@@ -57,9 +57,9 @@ const getStatusBadge = (status: string) => {
 
 const getAvailableStatusChanges = (currentStatus: string) => {
   const transitions: Record<string, string[]> = {
-    draft: ['pending'],
-    pending: ['approved'],
-    approved: ['received'],
+    draft: ['pending', 'cancelled'],
+    pending: ['approved', 'cancelled'],
+    approved: ['received', 'cancelled'],
     received: [],
     cancelled: []
   };
@@ -82,8 +82,6 @@ export default function PurchaseOrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   
   const isOnline = useNetworkStatus();
-  
-  // ✅ ADD FORCE REFRESH HOOK
   const forceRefresh = useForceRefresh();
 
   // Use custom hooks for data fetching
@@ -114,7 +112,6 @@ export default function PurchaseOrdersPage() {
     };
   }, []);
 
-  
   // Performance monitoring
   useEffect(() => {
     const perf = measurePerformance('PurchaseOrdersPage Mount');
@@ -215,24 +212,20 @@ export default function PurchaseOrdersPage() {
     fetchInitialData();
   }, [fetchFilteredPurchaseOrders, fetchStats]);
 
-  // ✅ FIXED: PO Created with force refresh
   const handlePOCreated = async () => {
     try {
       console.log('🔄 PO Created - Starting force refresh...');
       
-      // Clear specific caches
       clearCacheByEndpoint('/api/purchase-orders/');
       clearCacheByEndpoint('/api/inventory/');
       clearCacheByEndpoint('/api/purchase-orders/statistics/');
       
-      // Force re-fetch
       await Promise.all([
         fetchFilteredPurchaseOrders(),
         fetchStats(),
         fetchProductsData()
       ]);
       
-      // Also trigger a full page refresh after short delay
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('dataRefresh'));
       }, 500);
@@ -247,13 +240,18 @@ export default function PurchaseOrdersPage() {
     }
   };
 
-  // Handle status change with optimistic updates
   const handleChangeStatus = async (po: PurchaseOrder, newStatus: string) => {
     if (!purchaseOrdersData?.result) return;
 
+    console.log('🔧 DEBUG Status Change:', {
+      poId: po.id,
+      currentStatus: po.status,
+      newStatus: newStatus,
+      availableChanges: getAvailableStatusChanges(po.status)
+    });
+
     const newStatusTyped = newStatus as PurchaseOrder['status'];
     
-    // Optimistic update
     const previousData = { ...purchaseOrdersData };
     const updatedPOs = purchaseOrdersData.result.map(item => 
       item.id === po.id ? { ...item, status: newStatusTyped } : item
@@ -270,22 +268,29 @@ export default function PurchaseOrdersPage() {
         body: JSON.stringify({ status: newStatus })
       });
 
+      console.log('🔧 DEBUG Response:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      });
+
       if (response.ok) {
-        showSuccess(`Status changed to ${newStatus}`);
+        const responseData = await response.json();
+        console.log('🔧 DEBUG Response Data:', responseData);
         
-        // Force refresh after status change
+        showSuccess(`Status changed to ${newStatus}`);
+          
         await forceRefresh(
           ['/api/purchase-orders/', '/api/purchase-orders/statistics/'],
           [fetchFilteredPurchaseOrders, fetchStats]
         );
       } else {
-        // Rollback on error
         setPurchaseOrdersData(previousData);
         const errorData = await response.json();
+        console.error('🔧 DEBUG Error:', errorData);
         showError(errorData.error || "Failed to change status");
       }
     } catch (error) {
-      // Rollback on error
       setPurchaseOrdersData(previousData);
       console.error("Error changing status:", error);
       showError("Error changing status");
@@ -299,7 +304,6 @@ export default function PurchaseOrdersPage() {
     setDropdownOpen(null);
   };
 
-  // ✅ FIXED: Refresh with force refresh
   const handleRefresh = async () => {
     await forceRefresh(
       ['/api/purchase-orders/', '/api/purchase-orders/statistics/', '/api/inventory/'],
@@ -318,7 +322,6 @@ export default function PurchaseOrdersPage() {
     );
   }, [purchaseOrdersData, debouncedSearch]);
 
-  // ✅ DEBUG: Log data to console
   useEffect(() => {
     console.log('📊 Purchase Orders Data:', {
       loading: poLoading,
@@ -338,11 +341,13 @@ export default function PurchaseOrdersPage() {
           <div className="ml-64">
             <Topbar query={query} setQuery={setQuery} />
 
-            <main className="pt-20 p-6">
-              {/* Header */}
-              <div className="mb-6">
+            {/* ✅ FIXED: Main content with fixed header and scrollable table */}
+            <main className="pt-20 h-screen overflow-hidden flex flex-col">
+              {/* ✅ Fixed Header Section */}
+              <div className="flex-shrink-0 p-6 space-y-6">
+                {/* Header */}
                 <div className="flex justify-between items-center">
-                  <div className="mt-4">
+                  <div>
                     <h1 className="text-3xl font-bold text-gray-800">Purchase Orders</h1>
                     <p className="text-gray-600 mt-1">Manage procurement and supplier orders</p>
                   </div>
@@ -360,28 +365,32 @@ export default function PurchaseOrdersPage() {
                   onFilterChange={setFilterStatus}
                   onRefresh={handleRefresh}
                 />
+
+                {/* Statistics Cards */}
+                <PurchaseOrdersStats 
+                  statistics={statisticsData}
+                  formatCurrency={formatCurrency}
+                />
               </div>
 
-              {/* Statistics Cards */}
-              <PurchaseOrdersStats 
-                statistics={statisticsData}
-                formatCurrency={formatCurrency}
-              />
-
-
-              {/* Table */}
-              <PurchaseOrdersTable
-                purchaseOrders={filteredPOs}
-                loading={poLoading}
-                onViewPO={handleViewPO}
-                onChangeStatus={handleChangeStatus}
-                dropdownOpen={dropdownOpen}
-                onDropdownToggle={setDropdownOpen}
-                formatCurrency={formatCurrency}
-                formatDate={formatDate}
-                getStatusBadge={getStatusBadge}
-                getAvailableStatusChanges={getAvailableStatusChanges}
-              />
+              {/* ✅ Scrollable Table Section */}
+              <div className="flex-1 px-6 pb-6 overflow-y-auto">
+                <PurchaseOrdersTable
+                  purchaseOrders={filteredPOs}
+                  loading={poLoading}
+                  onViewPO={handleViewPO}
+                  onChangeStatus={handleChangeStatus}
+                  dropdownOpen={dropdownOpen}
+                  onDropdownToggle={setDropdownOpen}
+                  formatCurrency={formatCurrency}
+                  formatDate={formatDate}
+                  getStatusBadge={getStatusBadge}
+                  getAvailableStatusChanges={getAvailableStatusChanges}
+                  products={products}
+                  onRefresh={handleRefresh}
+                  filterStatus={filterStatus}
+                />
+              </div>
             </main>
           </div>
         </div>

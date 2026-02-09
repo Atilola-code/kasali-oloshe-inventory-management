@@ -82,11 +82,37 @@ export default function LiveChatPage() {
     audioRef.current.volume = 0.5;
   }, []);
 
-  const playNotificationSound = () => {
-    if (audioRef.current) {
-      audioRef.current.play().catch(err => console.log('Could not play sound:', err));
+  const playBeepSound = () => {
+  try {
+    // Type-safe way to handle webkitAudioContext
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    
+    if (!AudioContextClass) {
+      console.log('Web Audio API not supported');
+      return;
     }
-  };
+    
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gainNode.gain.value = 0.1;
+    
+    oscillator.start();
+    setTimeout(() => {
+      oscillator.stop();
+      // Optional: close the context to free resources
+      context.close();
+    }, 200);
+  } catch (e) {
+    console.log('Error playing beep sound:', e);
+  }
+};
 
   useEffect(() => {
     fetchUsers();
@@ -106,7 +132,7 @@ export default function LiveChatPage() {
             }
           },
         });
-        playNotificationSound();
+        playBeepSound();
       }
       fetchUnreadCounts();
     }
