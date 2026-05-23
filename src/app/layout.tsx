@@ -3,6 +3,7 @@ import "./globals.css";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ToastProvider from "./providers/ToastProvider";
+import ReactQueryProvider from "./providers/ReactQueryProvider";
 import { useEffect } from "react";
 import { setupMidnightChecker } from "@/app/utils/dateUtils";
 import { CacheProvider } from './providers/CacheProvider';
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className}`}>
+        <ReactQueryProvider>
         <AuthProvider>
           <CacheProvider>
           <WebSocketProvider>
@@ -31,6 +33,7 @@ export default function RootLayout({
           </WebSocketProvider>
           </CacheProvider>
         </AuthProvider>
+        </ReactQueryProvider>
       </body>
     </html>
   );

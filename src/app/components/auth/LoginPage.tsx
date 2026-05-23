@@ -28,7 +28,7 @@ export default function LoginPage({onSuccess}: {onSuccess: () => void}) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="bg-blue-600 rounded-full w-16 h-16 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">KO</div>
+          <div className="bg-blue-600 rounded-full w-16 h-16 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">CG</div>
           <h1 className="text-2xl font-bold">Welcome Back</h1>
           <p className="text-gray-600 mt-2">CrystalCrest Global Inventory</p>
         </div>
