@@ -30,7 +30,7 @@ export default function LoginPage({onSuccess}: {onSuccess: () => void}) {
         <div className="text-center mb-8">
           <div className="bg-blue-600 rounded-full w-16 h-16 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">KO</div>
           <h1 className="text-2xl font-bold">Welcome Back</h1>
-          <p className="text-gray-600 mt-2">Kasali Oloshe Inventory</p>
+          <p className="text-gray-600 mt-2">CrystalCrest Global Inventory</p>
         </div>
 
         {error &&

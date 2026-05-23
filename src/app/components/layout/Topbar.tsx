@@ -29,7 +29,7 @@ export default function Topbar({ query, setQuery, onRegisterClick }: Props) {
           <div className="bg-blue-600 rounded-full w-10 h-10 flex items-center justify-center text-white font-bold">
             KO
           </div>
-          <span className="font-bold text-xl">Kasali Oloshe</span>
+          <span className="font-bold text-xl">CrystalCrest Global</span>
         </div>
         
         <div className="flex items-center gap-3">

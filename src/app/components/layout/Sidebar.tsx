@@ -275,7 +275,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-3 p-6 border-b">
           <div className="bg-blue-600 rounded-full w-10 h-10 flex items-center justify-center text-white font-bold">KO</div>
           <div>
-            <div className="font-bold text-xl">Kasali Oloshe</div>
+            <div className="font-bold text-xl">CrystalCrest Global</div>
             <div className="text-xs text-gray-500">Inventory Management</div>
           </div>
         </div>

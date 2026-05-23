@@ -179,7 +179,7 @@ export default function ReceiptView({ saleId, onDone }: Props) {
         >
           {/* Header */}
           <div className="text-center mb-6 border-b-2 pb-4">
-            <h1 className="text-3xl font-bold text-gray-800">Kasali Oloshe</h1>
+            <h1 className="text-3xl font-bold text-gray-800">CrystalCrest Global</h1>
             <p className="text-sm text-gray-600 mt-1">Inventory Management System</p>
             <p className="text-xs text-gray-500 mt-2">Receipt</p>
           </div>
